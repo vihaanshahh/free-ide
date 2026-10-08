@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
@@ -9,7 +10,10 @@ const landingPort = process.env.SUBSPACES_LANDING_PORT || "41825";
 const outDir = path.join(ROOT, "artifacts");
 const landingOut = path.join(outDir, "subspaces-landing.png");
 const ideOut = path.join(outDir, "subspaces-ide.png");
+const opencodeOut = path.join(outDir, "subspaces-opencode-gravity.png");
 fs.mkdirSync(outDir, { recursive: true });
+
+const onlyOpencode = process.env.SCREENSHOT_ONLY === "opencode";
 
 const browser = await puppeteer.launch({
   executablePath: process.env.CHROME || "/opt/google/chrome/chrome",
@@ -21,6 +25,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 page.setDefaultTimeout(120000);
 
+if (!onlyOpencode) {
 await page.goto(`http://127.0.0.1:${landingPort}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForSelector("#field[data-ready='true']", { timeout: 30000 });
 await page.evaluate(() => document.fonts.ready);
@@ -47,9 +52,11 @@ if (!cta || !cta.includes(`:${idePort}`)) {
 
 await page.screenshot({ path: landingOut, fullPage: false });
 console.log(landingOut);
+}
 
 await page.goto(`http://127.0.0.1:${idePort}/`, { waitUntil: "domcontentloaded", timeout: 120000 });
 await page.waitForSelector(".monaco-workbench", { timeout: 120000 });
+for (let attempt = 0; attempt < 6; attempt += 1) await page.keyboard.press("Escape");
 
 for (let attempt = 0; attempt < 8; attempt += 1) {
   const clicked = await page.evaluate(() => {
@@ -63,11 +70,15 @@ for (let attempt = 0; attempt < 8; attempt += 1) {
   await delay(500);
 }
 
+await openChatPane(page);
+
 let found = false;
 for (let attempt = 0; attempt < 40 && !found; attempt += 1) {
   for (const frame of page.frames()) {
     const prompt = await frame.$("[data-testid='sample-prompt']").catch(() => null);
     if (!prompt) continue;
+    const box = await prompt.boundingBox();
+    if (!box || box.height < 8 || box.width < 8) continue;
     await prompt.click();
     found = true;
     break;
@@ -81,25 +92,93 @@ if (!found) {
   throw new Error("Chat panel did not show the sample prompt");
 }
 
-let ad = false;
-for (let attempt = 0; attempt < 40 && !ad; attempt += 1) {
+let ready = false;
+for (let attempt = 0; attempt < 90 && !ready; attempt += 1) {
   for (const frame of page.frames()) {
-    const card = await frame.$("[data-testid='gravity-ad']").catch(() => null);
-    if (card) {
-      ad = true;
+    const state = await frame
+      .evaluate(() => {
+        const ad = document.querySelector("[data-testid='gravity-ad']");
+        const reply = document.querySelector("[data-testid='assistant-reply']");
+        const live = document.querySelector("[data-testid='harness-live']");
+        const text = reply?.textContent || "";
+        const rect = ad?.getBoundingClientRect();
+        if (ad) ad.scrollIntoView({ block: "center" });
+        return {
+          ad: ad?.getAttribute("data-ad-source") || "",
+          live: Boolean(live),
+          edited: /nextCursor/.test(text),
+          adH: rect ? Math.round(rect.height) : 0,
+          adW: rect ? Math.round(rect.width) : 0,
+        };
+      })
+      .catch(() => null);
+    if (state?.live && state.edited && state.ad === "gravity" && state.adH > 40 && state.adW > 80) {
+      ready = true;
+      console.log(`ad box ${state.adW}x${state.adH}`);
       break;
     }
   }
-  if (!ad) await delay(400);
+  if (!ready) await delay(1000);
 }
 
-await delay(600);
-await page.screenshot({ path: ideOut, fullPage: false });
-await browser.close();
-if (!ad) {
-  throw new Error(`Ad card was not visible. Debug shot: ${ideOut}`);
+await delay(400);
+await page.mouse.click(760, 420);
+for (let attempt = 0; attempt < 4; attempt += 1) await page.keyboard.press("Escape");
+await delay(300);
+if (!onlyOpencode) {
+  await page.screenshot({ path: ideOut, fullPage: false });
+  console.log(ideOut);
 }
-console.log(ideOut);
+await page.screenshot({ path: opencodeOut, fullPage: false });
+await browser.close();
+if (!ready) {
+  throw new Error(`Opencode reply with a Gravity ad was not visible. Debug shot: ${opencodeOut}`);
+}
+assertLightCard(opencodeOut);
+console.log(opencodeOut);
+
+async function openChatPane(page) {
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const state = await page.evaluate(() => {
+      const headers = [...document.querySelectorAll(".pane-header")];
+      const header = (pattern) => headers.find((node) => pattern.test(node.innerText || ""));
+      const explorer = header(/tallyhouse-api/);
+      const chat = header(/^Chat\b/);
+      const sponsored = header(/Sponsored/);
+      if (explorer?.getAttribute("aria-expanded") === "true") explorer.click();
+      if (chat?.getAttribute("aria-expanded") === "false") chat.click();
+      const chatBox = chat?.getBoundingClientRect();
+      const sponsoredBox = sponsored?.getBoundingClientRect();
+      const height = chatBox && sponsoredBox ? sponsoredBox.y - (chatBox.y + chatBox.height) : chatBox?.height || 0;
+      return { height: Math.round(height), chat: Boolean(chat) };
+    });
+    if (state.chat && state.height > 420) return;
+    await delay(400);
+  }
+  throw new Error("Chat pane did not expand enough to show a reply and an ad");
+}
+
+function assertLightCard(file) {
+  const decoded = spawnSync(
+    "ffmpeg",
+    ["-v", "error", "-i", file, "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"],
+    { maxBuffer: 20_000_000 },
+  );
+  if (decoded.status !== 0) throw new Error("Could not decode the IDE screenshot");
+  const data = decoded.stdout;
+  const width = 1440;
+  const height = 900;
+  if (data.length !== width * height * 3) {
+    throw new Error(`Unexpected screenshot size ${data.length}`);
+  }
+  let light = 0;
+  for (let i = 0; i < data.length; i += 3) {
+    if (data[i] > 210 && data[i + 1] > 210 && data[i + 2] > 210) light += 1;
+  }
+  if (light < 4000) {
+    throw new Error(`Gravity card is not visible (${light} light pixels)`);
+  }
+}
 
 async function sampleCanvas(target) {
   return target.evaluate(() => {

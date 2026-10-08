@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GravityAdCard } from "./GravityAdCard";
 import { Mark } from "./Mark";
 import { OfficialAd } from "./OfficialAd";
-import { connectChat, connectSidebar, gravityContext, sessionId } from "./bridge";
+import { connectChat, connectSidebar, gravityContext, installPixel, sessionId } from "./bridge";
 import type { AdCreative, ChatTurn, PublicConfig } from "./types";
 
 const SAMPLE =
-  "Add cursor pagination to GET /invoices. Default 20 per page, max 100, and return a nextCursor.";
+  "Edit src/routes/invoices.ts so listInvoices returns nextCursor: null next to items.";
 
 function AdSlot({ ad }: { ad: AdCreative }) {
   if (ad.source === "gravity") return <OfficialAd ad={ad} />;
@@ -96,6 +96,10 @@ function Chat() {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
   }, [turns]);
 
+  useEffect(() => {
+    if (config?.pixelId) installPixel(config.pixelId);
+  }, [config?.pixelId]);
+
   function send(text: string) {
     const content = text.trim();
     if (!content || busy) return;
@@ -153,6 +157,11 @@ function Chat() {
           onClick={() => setHarness("opencode")}
         >
           opencode
+          {config?.opencode ? (
+            <span className="live" data-testid="harness-live">
+              live
+            </span>
+          ) : null}
         </button>
         <button
           type="button"
@@ -169,7 +178,7 @@ function Chat() {
             <p className="wordmark">subspaces.si</p>
             <p className="lede">Flash chat in the editor. Ads keep it free. No Pro tier.</p>
             <button type="button" className="sample" data-testid="sample-prompt" onClick={() => send(SAMPLE)}>
-              Suggest cursor pagination for invoices
+              Add nextCursor to listInvoices
             </button>
           </div>
         ) : null}
@@ -185,10 +194,14 @@ function Chat() {
                 <Mark size={22} />
                 <span className="meta">
                   {turn.harness || "opencode"}
-                  <span>{config?.mockLlm === false ? model : `${model} · mock`}</span>
+                  <span>{config?.mockLlm === false ? model : `${model} · canned provider`}</span>
                 </span>
               </div>
-              {turn.content ? <Rich text={turn.content} /> : null}
+              {turn.content ? (
+                <div data-testid="assistant-reply">
+                  <Rich text={turn.content} />
+                </div>
+              ) : null}
               {turn.pending && !turn.content ? <p className="pending">Thinking…</p> : null}
               {turn.error ? <p className="error">{turn.error}</p> : null}
               {turn.ad ? <AdSlot ad={turn.ad} /> : null}
@@ -219,6 +232,19 @@ function Chat() {
         <button className="send" type="submit" data-testid="chat-send" disabled={busy}>
           Send
         </button>
+        {busy ? (
+          <button
+            className="send stop"
+            type="button"
+            data-testid="chat-stop"
+            onClick={() => {
+              window.__SUBSPACES_VSCODE__?.postMessage({ type: "cancel", sessionId: id });
+              setBusy(false);
+            }}
+          >
+            Stop
+          </button>
+        ) : null}
       </form>
       <div className="usage">{usage || "15M soft cap · slows, does not block"}</div>
     </div>

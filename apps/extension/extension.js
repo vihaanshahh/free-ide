@@ -76,8 +76,19 @@ class PanelProvider {
       if (message.type === "sidebar") {
         sendSidebar(webview).catch((error) => console.error(error));
       }
+      if (message.type === "cancel") {
+        this.chatAbort?.abort();
+        fetch(`${API_ORIGIN}/api/chat/cancel`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId: message.sessionId }),
+        }).catch(() => undefined);
+      }
       if (message.type === "chat") {
-        streamChat(webview, message.payload).catch((error) => {
+        this.chatAbort?.abort();
+        this.chatAbort = new AbortController();
+        streamChat(webview, message.payload, this.chatAbort.signal).catch((error) => {
+          if (error && error.name === "AbortError") return;
           webview.postMessage({
             type: "event",
             event: { type: "error", message: error instanceof Error ? error.message : "Proxy error" },
@@ -100,7 +111,8 @@ function htmlFor(webview, context, surface) {
     `img-src ${webview.cspSource} data: blob: https:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     `font-src ${webview.cspSource} data:`,
-    `script-src 'nonce-${nonce}'`,
+    `script-src 'nonce-${nonce}' https://code.trygravity.ai`,
+    "frame-src https:",
     "connect-src http: https:",
   ].join("; ");
   return `<!DOCTYPE html>
@@ -135,11 +147,12 @@ async function sendSidebar(webview) {
   webview.postMessage({ type: "sidebar-ad", ad: body.ad ?? null });
 }
 
-async function streamChat(webview, payload) {
+async function streamChat(webview, payload, signal) {
   const response = await fetch(`${API_ORIGIN}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));

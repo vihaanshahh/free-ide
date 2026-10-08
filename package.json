@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "setup": "node scripts/setup-code-server.mjs",
+    "setup": "node scripts/setup-code-server.mjs && node scripts/setup-opencode.mjs",
     "build": "pnpm --filter @subspaces/chat-ui build && pnpm --filter @subspaces/landing build",
     "dev": "node scripts/dev.mjs",
     "test": "pnpm --filter @subspaces/backend test && node --experimental-strip-types --test apps/landing/src/pipeline.test.ts",

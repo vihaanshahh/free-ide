@@ -21,6 +21,11 @@ export interface AdCreative {
   placement_id: string;
   source: "gravity" | "mock";
   layout: "image_right" | "native";
+  render?: unknown;
+  renderer_spec?: unknown;
+  composition?: unknown;
+  campaignId?: string;
+  variant?: string;
 }
 
 export interface GravityContext {

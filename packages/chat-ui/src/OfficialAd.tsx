@@ -8,7 +8,7 @@ import type { AdCreative } from "./types";
 export function OfficialAd({ ad }: { ad: AdCreative }) {
   return (
     <div className="ad-official" data-testid="gravity-ad" data-ad-source="gravity">
-      <GravityAd ad={ad} showLabel labelText="Sponsored" openInNewTab />
+      <GravityAd ad={ad} theme="light" showLabel labelText="Sponsored" openInNewTab />
     </div>
   );
 }

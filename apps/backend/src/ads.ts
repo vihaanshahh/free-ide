@@ -59,43 +59,82 @@ export function mockSidebarAd(): AdCreative {
   };
 }
 
+export const AD_PLACEMENTS = [
+  { placement: "below_response", placement_id: "below_response" },
+  { placement: "right_response", placement_id: "sidebar" },
+] as const;
+
 function mockEnabled(): boolean {
   if (process.env.MOCK_ADS === "0") return false;
   if (process.env.MOCK_ADS === "1") return true;
   return !process.env.GRAVITY_API_KEY;
 }
 
-function asCreative(raw: Record<string, unknown>, placementId: string): AdCreative | null {
-  const adText = typeof raw.adText === "string" ? raw.adText : "";
-  const title = typeof raw.title === "string" ? raw.title : "";
+function stringField(raw: Record<string, unknown>, key: string): string {
+  const value = raw[key];
+  return typeof value === "string" ? value : "";
+}
+
+function isSidebarSlot(placement: string, placementId: string): boolean {
+  return placementId === "sidebar" || placement === "right_response" || placement === "right_page";
+}
+
+function slotFor(raw: Record<string, unknown>, index: number): { placement: string; placement_id: string } {
+  const placement = stringField(raw, "placement");
+  const placementId = stringField(raw, "placement_id");
+  if (placement || placementId) {
+    const sidebar = isSidebarSlot(placement, placementId);
+    return {
+      placement: placement || (sidebar ? "right_response" : "below_response"),
+      placement_id: placementId || (sidebar ? "sidebar" : "below_response"),
+    };
+  }
+  return AD_PLACEMENTS[index] ?? AD_PLACEMENTS[0];
+}
+
+function asCreative(
+  raw: Record<string, unknown>,
+  slot: { placement: string; placement_id: string },
+): AdCreative | null {
+  const adText = stringField(raw, "adText");
+  const title = stringField(raw, "title");
   if (!adText && !title) return null;
-  const brandImage = typeof raw.brandImage === "string" ? raw.brandImage : "";
+  const brandImage = stringField(raw, "brandImage");
   return {
+    ...raw,
     adText,
     title: title || adText,
-    brandName: typeof raw.brandName === "string" ? raw.brandName : "Sponsored",
-    cta: typeof raw.cta === "string" ? raw.cta : "",
-    url: typeof raw.url === "string" ? raw.url : "",
-    favicon: typeof raw.favicon === "string" ? raw.favicon : "",
+    brandName: stringField(raw, "brandName") || "Sponsored",
+    cta: stringField(raw, "cta"),
+    url: stringField(raw, "url"),
+    favicon: stringField(raw, "favicon"),
     brandImage,
-    clickUrl: typeof raw.clickUrl === "string" ? raw.clickUrl : "",
-    impUrl: typeof raw.impUrl === "string" ? raw.impUrl : "",
-    placement: typeof raw.placement === "string" ? raw.placement : "below_response",
-    placement_id: typeof raw.placement_id === "string" ? raw.placement_id : placementId,
+    clickUrl: stringField(raw, "clickUrl"),
+    impUrl: stringField(raw, "impUrl"),
+    placement: slot.placement,
+    placement_id: slot.placement_id,
     source: "gravity",
     layout: brandImage ? "image_right" : "native",
   };
 }
 
-interface GravityLike {
+export interface GravityLike {
   getAds: (
     req: unknown,
     messages: Array<{ role: string; content: string }>,
     placements: Array<{ placement: string; placement_id: string }>,
-  ) => Promise<{ ads?: unknown[] }>;
+  ) => Promise<{ ads?: unknown[]; status?: number; error?: string }>;
 }
 
 let gravityClient: GravityLike | null | undefined;
+
+export function setGravityClientForTests(client: GravityLike | null): void {
+  gravityClient = client;
+}
+
+export function resetGravityClient(): void {
+  gravityClient = undefined;
+}
 
 async function client(): Promise<GravityLike | null> {
   if (gravityClient !== undefined) return gravityClient;
@@ -104,14 +143,36 @@ async function client(): Promise<GravityLike | null> {
     return null;
   }
   try {
-    const mod = (await import("@gravity-ai/api")) as { Gravity: new (opts: { production: boolean }) => GravityLike };
-    gravityClient = new mod.Gravity({ production: process.env.GRAVITY_PRODUCTION === "1" });
+    const mod = (await import("@gravity-ai/api")) as {
+      Gravity: new (opts: { production: boolean; alwaysReturn?: boolean }) => GravityLike;
+    };
+    const production = process.env.GRAVITY_PRODUCTION === "1";
+    gravityClient = new mod.Gravity({ production, alwaysReturn: !production });
     return gravityClient;
   } catch (error) {
-    console.warn("Gravity SDK did not load. Mock creatives stay available.", error);
+    console.warn("Gravity SDK did not load.", error instanceof Error ? error.message : "unknown");
     gravityClient = null;
     return null;
   }
+}
+
+let hostIp: Promise<string | null> | null = null;
+
+function lookupHostIp(): Promise<string | null> {
+  if (!hostIp) {
+    hostIp = fetch("https://api.ipify.org?format=json", { signal: AbortSignal.timeout(3000) })
+      .then((response) => response.json() as Promise<{ ip?: string }>)
+      .then((body) => (typeof body.ip === "string" ? body.ip : null))
+      .catch(() => null);
+  }
+  return hostIp;
+}
+
+function publicAddress(value: string | undefined): string | null {
+  if (!value) return null;
+  const first = value.split(",")[0]?.trim() ?? "";
+  if (!first || first === "::1" || first.startsWith("127.") || first === "0.0.0.0") return null;
+  return first;
 }
 
 export async function fetchPlacements(input: {
@@ -120,40 +181,50 @@ export async function fetchPlacements(input: {
   headers: Record<string, string | undefined>;
   remoteAddress?: string;
 }): Promise<{ below: AdCreative | null; sidebar: AdCreative | null }> {
-  const stripped = messagesForAds(input.messages);
+  const stripped = messagesForAds(input.messages).filter(
+    (message) => message.role === "user" || message.role === "assistant",
+  );
   const sdk = await client();
   let below: AdCreative | null = null;
   let sidebar: AdCreative | null = null;
 
   if (sdk && stripped.length > 0) {
+    const forwarded = publicAddress(input.headers["x-forwarded-for"]) || publicAddress(input.remoteAddress);
+    const ip = forwarded || (await lookupHostIp());
+    const context = {
+      sessionId: input.gravityContext?.sessionId || "local-demo",
+      user: { userId: input.gravityContext?.user?.userId || "local-demo" },
+      device: {
+        ...(input.gravityContext?.device ?? {}),
+        ...(ip ? { ip } : {}),
+      },
+    };
     const req = {
       body: {
-        gravity_context: input.gravityContext ?? {},
+        gravity_context: context,
         messages: stripped,
       },
       headers: {
-        "user-agent": input.gravityContext?.device?.ua || input.headers["user-agent"] || "",
-        "x-forwarded-for": input.headers["x-forwarded-for"] || input.remoteAddress || "",
+        "user-agent": context.device.ua || input.headers["user-agent"] || "",
+        ...(ip ? { "x-forwarded-for": ip } : {}),
       },
     };
     try {
-      const result = await sdk.getAds(req, stripped, [
-        { placement: "below_response", placement_id: "below_response" },
-        { placement: "right_page", placement_id: "sidebar" },
-      ]);
-      const ads = Array.isArray(result.ads) ? result.ads : [];
-      for (const ad of ads) {
-        if (!ad || typeof ad !== "object") continue;
-        const creative = asCreative(ad as Record<string, unknown>, "below_response");
-        if (!creative) continue;
-        if (creative.placement_id === "sidebar" || creative.placement === "right_page") {
-          sidebar = creative;
-        } else if (!below) {
-          below = creative;
-        }
+      const result = await sdk.getAds(req, stripped, [...AD_PLACEMENTS]);
+      if (result.error || (result.status && result.status >= 400)) {
+        console.warn(`Gravity getAds status=${result.status ?? 0}`);
       }
+      const ads = Array.isArray(result.ads) ? result.ads : [];
+      ads.forEach((ad, index) => {
+        if (!ad || typeof ad !== "object") return;
+        const raw = ad as Record<string, unknown>;
+        const creative = asCreative(raw, slotFor(raw, index));
+        if (!creative) return;
+        if (isSidebarSlot(creative.placement, creative.placement_id)) sidebar = creative;
+        else if (!below) below = creative;
+      });
     } catch (error) {
-      console.warn("Gravity getAds failed closed.", error);
+      console.warn("Gravity getAds failed closed.", error instanceof Error ? error.message : "unknown");
     }
   }
 

@@ -4,7 +4,9 @@ dist/
 .env
 .env.local
 .subspaces/
-vendor/
+vendor/*
+!vendor/opencode
+!vendor/opencode/**
 *.log
 .DS_Store
 apps/extension/media/chat.js

@@ -74,6 +74,12 @@ button, textarea { font-family: inherit; }
   color: var(--cream);
 }
 
+.live {
+  margin-left: 6px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
 .thread {
   flex: 1;
   overflow: auto;

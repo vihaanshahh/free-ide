@@ -22,6 +22,29 @@ export function sessionId(): string {
   return next;
 }
 
+export function installPixel(pixelId: string): void {
+  const host = window as Window & { gravity?: GravityPixel };
+  if (!host.gravity) {
+    const gravity: GravityPixel = (...args: unknown[]) => {
+      gravity.q = gravity.q || [];
+      gravity.q.push(args);
+    };
+    host.gravity = gravity;
+  }
+  host.gravity("init", pixelId);
+  if (document.getElementById("gravity-pixel")) return;
+  const script = document.createElement("script");
+  script.id = "gravity-pixel";
+  script.async = true;
+  script.src = "https://code.trygravity.ai/gr-pix.js";
+  document.head.appendChild(script);
+}
+
+interface GravityPixel {
+  (...args: unknown[]): void;
+  q?: unknown[][];
+}
+
 export function gravityContext(id: string): ChatRequest["gravity_context"] {
   return {
     sessionId: id,

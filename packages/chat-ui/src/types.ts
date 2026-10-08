@@ -33,6 +33,8 @@ export interface ChatTurn {
 
 export interface PublicConfig {
   mockLlm: boolean;
+  opencode?: boolean;
+  opencodeVersion?: string | null;
   gravity: boolean;
   pixelId: string | null;
   modelLabel: string;

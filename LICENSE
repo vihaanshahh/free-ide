@@ -23,3 +23,9 @@ SOFTWARE.
 The editor shell is separately licensed (MIT, Code - OSS via code-server) and
 is downloaded by scripts/setup-code-server.mjs rather than vendored here.
 Satoshi is under the ITF Free Font License; see packages/brand/font-notes.txt.
+
+OpenCode is separately licensed under the MIT License, Copyright (c) 2025
+opencode. The pinned source lives in vendor/opencode (https://github.com/sst/opencode,
+also published as https://github.com/anomalyco/opencode). Its LICENSE file in
+that checkout must be retained. The matching release binary is downloaded by
+scripts/setup-opencode.mjs and is not committed.

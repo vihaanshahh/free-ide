@@ -19,12 +19,20 @@ Do not ship Microsoft editor trademarks or logos in product strings. "Built on C
 
 `apps/backend`, `packages/chat-ui`, `packages/brand`, and `apps/extension` do not import the shell. A later Code - OSS checkout (VSCodium-style patch set, small core diffs, our UI in its own extension) can replace `vendor/` without rewriting the proxy, the ledger, or the chat panel.
 
+## OpenCode
+
+Pinned tag **v1.18.27** (MIT, Copyright (c) 2025 opencode).
+
+- Source: git submodule `vendor/opencode`, remote https://github.com/sst/opencode (the repository also lives at https://github.com/anomalyco/opencode). Pinned commit `4b7e19e315cca414121ba1d61523fef74bb3ae8b`, which is tag `v1.18.27`.
+- Runtime: `scripts/setup-opencode.mjs` downloads `opencode-linux-x64.tar.gz` for that tag into `vendor/opencode-runtime/` (gitignored). Do not commit the binary.
+- Upkeep: check out the new tag in `vendor/opencode`, set `OPENCODE_VERSION` in `scripts/setup-opencode.mjs` and `apps/backend/src/harness.ts` to the same tag, then re-run `pnpm setup`.
+- The server is `opencode serve` on port 41826. Its provider `subspaces` uses `@ai-sdk/openai-compatible` with `baseURL` pointed at this repo's `/v1` proxy. Model calls do not go to OpenCode Zen.
+
 ## Not done yet
 
 - A pinned Code - OSS checkout and a `patches/` directory
 - Weekly / tag-triggered upstream sync
 - Desktop signing and auto-update
-- Spawning the opencode binary. The `opencode` harness id is an adapter that sends the turn through our Flash proxy
 - A second real harness (the `stub` pill is the placeholder adapter)
 - GitHub OAuth token exchange and a persisted account record
 - A durable token ledger. Caps are in-memory per session: 15M soft cap slows replies, 20M hard cap refuses, plus 10/minute and 60/hour

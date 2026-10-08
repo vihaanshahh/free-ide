@@ -2,6 +2,9 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { codeServerBin, setup } from "./setup-code-server.mjs";
+import { opencodeBin, setupOpencode } from "./setup-opencode.mjs";
+
+loadLocalEnv(path.resolve(import.meta.dirname, "../.env"));
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const IDE_PORT = process.env.SUBSPACES_IDE_PORT || "41823";
@@ -9,6 +12,7 @@ const API_PORT = process.env.SUBSPACES_API_PORT || "41824";
 const LANDING_PORT = process.env.SUBSPACES_LANDING_PORT || "41825";
 
 setup();
+setupOpencode();
 
 const build = spawnSync("pnpm", ["--filter", "@subspaces/chat-ui", "build"], {
   cwd: ROOT,
@@ -82,8 +86,11 @@ function launch(command, args, extraEnv) {
 
 launch("pnpm", ["--filter", "@subspaces/backend", "dev"], {
   MOCK_LLM: process.env.MOCK_LLM || "1",
-  MOCK_ADS: process.env.MOCK_ADS || "1",
+  MOCK_ADS: process.env.MOCK_ADS ?? (process.env.GRAVITY_API_KEY ? "0" : "1"),
   SUBSPACES_API_PORT: API_PORT,
+  OPENCODE_BIN: opencodeBin(),
+  OPENCODE_PORT: process.env.OPENCODE_PORT || "41826",
+  SUBSPACES_WORKSPACE: path.join(ROOT, "examples", "tallyhouse-api"),
 });
 
 launch("pnpm", ["--filter", "@subspaces/landing", "dev"], {
@@ -124,6 +131,25 @@ launch(
 console.log(`\nlanding       http://127.0.0.1:${LANDING_PORT}`);
 console.log(`subspaces.si  http://127.0.0.1:${IDE_PORT}`);
 console.log(`proxy         http://127.0.0.1:${API_PORT}\n`);
+
+function loadLocalEnv(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
 
 function shutdown() {
   for (const child of children) child.kill("SIGTERM");
