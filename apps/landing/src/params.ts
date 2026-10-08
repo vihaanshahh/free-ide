@@ -1,0 +1,71 @@
+import type { AsciiParams } from "./pipeline";
+
+/**
+ * Preset from the ascii recipe, retinted for subspaces.
+ * The source tint was #3ca6ff at opacity 0 (a blue cast that never painted).
+ * Forest Ink drives the grade, and the dither glyphs are sage-to-cream.
+ */
+export const landingParams: AsciiParams = {
+  pfx: {
+    bloom: { enabled: false, intensity: 25 },
+    glitch: { enabled: false, intensity: 20 },
+    filmDust: { enabled: false, intensity: 20 },
+    halftone: { enabled: false, intensity: 20 },
+    pixelate: { enabled: false, intensity: 15 },
+    vignette: { enabled: true, intensity: 58 },
+    chromatic: { enabled: false, intensity: 15 },
+    filmGrain: { enabled: true, intensity: 32 },
+    scanLines: { enabled: false, intensity: 40 },
+  },
+  mask: {
+    tool: "freehand",
+    invert: false,
+    shapes: [],
+    dataUrl: null,
+    enabled: false,
+    brushSize: 30,
+    showOverlay: false,
+  },
+  tint: "#0f3e17",
+  bgBlur: 2,
+  bgMode: "blur",
+  invert: false,
+  lights: { points: [], enabled: false },
+  charSet: "standard",
+  density: 0,
+  animated: true,
+  blurType: "tilt",
+  cellSize: 9,
+  contrast: 128,
+  coverage: 100,
+  animSpeed: { enabled: true, intensity: 100 },
+  animStyle: "shimmer",
+  bgOpacity: 90,
+  blurAngle: 0,
+  grayscale: 100,
+  lensFocus: 40,
+  tiltFocus: 35,
+  toneCurve: [
+    { x: 0, y: 0 },
+    { x: 1, y: 1 },
+  ],
+  blurAmount: 30,
+  brightness: 0,
+  renderMode: "dither",
+  saturation: 0,
+  styleBlend: "screen",
+  blurCenterX: 50,
+  blurCenterY: 50,
+  customChars: "",
+  tiltFeather: 15,
+  tintOpacity: 0.82,
+  edgeEmphasis: 0,
+  overlayBlend: "multiply",
+  tiltPosition: 50,
+  animIntensity: { enabled: true, intensity: 60 },
+  progressiveReverse: false,
+  progressivePosition: 55,
+  directionalBothSides: false,
+};
+
+export const ideUrl = import.meta.env.VITE_IDE_URL || "http://127.0.0.1:41823";

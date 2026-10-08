@@ -7,9 +7,9 @@
   },
   "scripts": {
     "setup": "node scripts/setup-code-server.mjs",
-    "build": "pnpm --filter @subspaces/chat-ui build",
+    "build": "pnpm --filter @subspaces/chat-ui build && pnpm --filter @subspaces/landing build",
     "dev": "node scripts/dev.mjs",
-    "test": "pnpm --filter @subspaces/backend test",
+    "test": "pnpm --filter @subspaces/backend test && node --experimental-strip-types --test apps/landing/src/pipeline.test.ts",
     "screenshot": "node scripts/screenshot.mjs"
   },
   "devDependencies": {

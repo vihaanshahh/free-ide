@@ -6,6 +6,7 @@ import { codeServerBin, setup } from "./setup-code-server.mjs";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const IDE_PORT = process.env.SUBSPACES_IDE_PORT || "41823";
 const API_PORT = process.env.SUBSPACES_API_PORT || "41824";
+const LANDING_PORT = process.env.SUBSPACES_LANDING_PORT || "41825";
 
 setup();
 
@@ -85,6 +86,11 @@ launch("pnpm", ["--filter", "@subspaces/backend", "dev"], {
   SUBSPACES_API_PORT: API_PORT,
 });
 
+launch("pnpm", ["--filter", "@subspaces/landing", "dev"], {
+  SUBSPACES_LANDING_PORT: LANDING_PORT,
+  VITE_IDE_URL: `http://127.0.0.1:${IDE_PORT}`,
+});
+
 launch(
   codeServerBin(),
   [
@@ -115,7 +121,8 @@ launch(
   },
 );
 
-console.log(`\nsubspaces.si  http://127.0.0.1:${IDE_PORT}`);
+console.log(`\nlanding       http://127.0.0.1:${LANDING_PORT}`);
+console.log(`subspaces.si  http://127.0.0.1:${IDE_PORT}`);
 console.log(`proxy         http://127.0.0.1:${API_PORT}\n`);
 
 function shutdown() {
