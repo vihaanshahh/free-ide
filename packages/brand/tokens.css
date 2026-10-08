@@ -1,0 +1,25 @@
+:root {
+  --color-forest-ink: #0f3e17;
+  --color-forest-shadow: #0c2f10;
+  --color-sage-mist: #b1dbb8;
+  --color-keylime-wash: #e1f4df;
+  --color-mint-veil: #cfe7d3;
+  --color-slate-hush: #b6ced5;
+  --color-cream-paper: #fffefc;
+  --color-charcoal: #222222;
+  --color-border-mist: #efeeeb;
+
+  --font-satoshi: "Satoshi", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --radius-cards: 14px;
+  --radius-buttons: 14px;
+  --radius-badges: 999px;
+  --radius-ad: 10px;
+
+  --ide-bg: #181818;
+  --ide-editor: #1f1f1f;
+  --ide-fg: #cccccc;
+  --ide-muted: #9d9d9d;
+  --ide-line: #2b2b2b;
+}

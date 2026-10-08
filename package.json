@@ -1,0 +1,21 @@
+{
+  "name": "subspaces",
+  "private": true,
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "node scripts/setup-code-server.mjs",
+    "build": "pnpm --filter @subspaces/chat-ui build",
+    "dev": "node scripts/dev.mjs",
+    "test": "pnpm --filter @subspaces/backend test",
+    "screenshot": "node scripts/screenshot.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.15.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

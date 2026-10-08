@@ -1,0 +1,48 @@
+{
+  "name": "subspaces-chat",
+  "displayName": "subspaces",
+  "publisher": "subspaces",
+  "version": "0.1.0",
+  "description": "Chat panel for subspaces.si. Harness switcher, Flash proxy, and a sponsored card under replies.",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "viewsContainers": {
+      "auxiliarybar": [
+        {
+          "id": "subspaces-chat",
+          "title": "subspaces",
+          "icon": "media/mark.svg"
+        }
+      ]
+    },
+    "views": {
+      "subspaces-chat": [
+        {
+          "type": "webview",
+          "id": "subspaces.chatView",
+          "name": "Chat"
+        }
+      ],
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "subspaces.sidebarAd",
+          "name": "Sponsored",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "themes": [
+      {
+        "label": "subspaces Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/subspaces-dark.json"
+      }
+    ]
+  }
+}
