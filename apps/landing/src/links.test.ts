@@ -47,6 +47,8 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.match(html, /Public beta/);
   assert.match(html, /data-testid="demo-video"/);
   assert.match(html, /id="field"/);
+  assert.equal(html.includes("dither-frame"), false);
+  assert.equal(html.includes("hero-source"), false);
   for (const target of RELEASE_TARGETS) {
     assert.equal(html.includes(assetUrl(target.file)), true);
   }
