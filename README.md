@@ -50,15 +50,20 @@ pnpm package
 
 They land in `dist/release/`. `dist/` is gitignored.
 
-## Landing on Vercel
+## Vercel
 
-The marketing page builds on its own. It does not need the backend or code-server.
+One Vercel project, repo root, configured in `vercel.json` as services. Do not set the project Root Directory to `apps/landing`.
 
-1. Import this repo in Vercel.
-2. Set **Root Directory** to `apps/landing`.
-3. Leave **Include source files outside of the Root Directory** enabled (the default for projects created after August 2020). The page imports `packages/brand`, and pnpm install uses the lockfile at the repo root.
-4. Framework preset Vite. `apps/landing/vercel.json` sets the install command, `pnpm build`, and output directory `dist`.
-5. Environment variables, set before the build:
+| Public path | Service | What it is |
+| --- | --- | --- |
+| `/` and every path that is not `/api` or `/v1` | `landing` | Static Vite marketing page |
+| `/api/*` and `/v1/*` | `backend` | Hono functions: health, config, ads, chat, and the OpenAI-compatible proxy |
+
+The landing service still builds with `pnpm --filter @subspaces/landing build`. It imports `packages/brand`, so leave **Include source files outside of the Root Directory** enabled. There is no service binding: the page does not call the API, and binding URLs are not available at build time.
+
+`packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, a chat turn that asks for opencode gets the stub or Flash reply and does not edit files.
+
+Environment variables for the landing build:
 
 | Variable | Role |
 | --- | --- |

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "backend": {
+      "root": "apps/backend",
+      "framework": "hono",
+      "installCommand": "pnpm install --frozen-lockfile --prod=false"
+    },
+    "landing": {
+      "root": "apps/landing",
+      "framework": "vite",
+      "installCommand": "pnpm install --frozen-lockfile --prod=false",
+      "buildCommand": "pnpm build",
+      "outputDirectory": "dist"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/v1/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "landing" } }
+  ]
+}

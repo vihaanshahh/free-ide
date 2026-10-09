@@ -57,8 +57,6 @@ export function gravityContext(id: string): ChatRequest["gravity_context"] {
   };
 }
 
-const API = "http://127.0.0.1:41824";
-
 export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConfig) => void) {
   const vscode = window.__SUBSPACES_VSCODE__;
   if (vscode) {
@@ -79,14 +77,14 @@ export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConf
     };
   }
 
-  void fetch(`${API}/api/config`)
+  void fetch("/api/config")
     .then((response) => response.json())
     .then((config: PublicConfig) => onConfig(config))
     .catch(() => undefined);
 
   return {
     async send(payload: ChatRequest) {
-      const response = await fetch(`${API}/api/chat`, {
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -129,7 +127,7 @@ export function connectSidebar(onAd: (ad: AdCreative | null) => void) {
     vscode.postMessage({ type: "sidebar" });
     return () => window.removeEventListener("message", onMessage);
   }
-  void fetch(`${API}/api/ads/sidebar`)
+  void fetch("/api/ads/sidebar")
     .then((response) => response.json())
     .then((body: { ad?: AdCreative | null }) => onAd(body.ad ?? null))
     .catch(() => onAd(null));

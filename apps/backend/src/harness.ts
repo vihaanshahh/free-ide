@@ -400,8 +400,14 @@ export function defaultHarness(): OpenCodeHarness {
   });
 }
 
-function writeConfig(file: string): void {
+function providerBaseUrl(): string {
+  const origin = process.env.SUBSPACES_API_ORIGIN?.trim().replace(/\/$/, "");
+  if (origin) return `${origin}/v1`;
   const apiPort = process.env.SUBSPACES_API_PORT || "41824";
+  return `http://127.0.0.1:${apiPort}/v1`;
+}
+
+function writeConfig(file: string): void {
   const model = process.env.LLM_MODEL || PRIMARY_MODEL;
   const fallback = process.env.LLM_FALLBACK_MODEL || "deepseek-v4.1-flash";
   const body = {
@@ -417,7 +423,7 @@ function writeConfig(file: string): void {
         npm: "@ai-sdk/openai-compatible",
         env: ["SUBSPACES_PROVIDER_KEY"],
         options: {
-          baseURL: `http://127.0.0.1:${apiPort}/v1`,
+          baseURL: providerBaseUrl(),
           apiKey: "subspaces-local",
         },
         models: {

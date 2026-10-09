@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
-    "test": "tsx --test src/strip.test.ts src/ledger.test.ts src/provider.test.ts src/ads.test.ts src/harness.test.ts"
+    "test": "tsx --test src/strip.test.ts src/ledger.test.ts src/provider.test.ts src/ads.test.ts src/harness.test.ts src/app.test.ts"
   },
   "dependencies": {
     "@gravity-ai/api": "*",

@@ -21,6 +21,7 @@ export function activeHarness(): OpenCodeHarness | null {
 }
 
 export const app = new Hono();
+export default app;
 
 app.use(
   "*",
@@ -31,7 +32,7 @@ app.use(
   }),
 );
 
-app.get("/api/health", (c) => c.json({ ok: true, product: "subspaces.si", harness: harness ? "opencode" : "starting" }));
+app.get("/api/health", (c) => c.json({ ok: true, product: "subspaces.si", harness: harness ? "opencode" : "off" }));
 
 app.get("/api/config", (c) => {
   const pixelId = process.env.GRAVITY_PIXEL_ID || null;
@@ -75,8 +76,7 @@ app.get("/api/auth/github", (c) => {
       501,
     );
   }
-  const port = Number(process.env.SUBSPACES_API_PORT || 41824);
-  const redirectUri = process.env.GITHUB_OAUTH_CALLBACK || `http://127.0.0.1:${port}/api/auth/github/callback`;
+  const redirectUri = process.env.GITHUB_OAUTH_CALLBACK || new URL("/api/auth/github/callback", c.req.url).toString();
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("scope", "read:user user:email");
@@ -139,6 +139,8 @@ app.post("/api/chat", async (c) => {
     }));
 
   const harnessId: HarnessId = body.harness === "stub" ? "stub" : "opencode";
+  const active = harness;
+  const ranHarness: HarnessId = harnessId === "opencode" && active ? "opencode" : "stub";
   const sessionId = sessionOf(body.sessionId);
   const gate = ledger.consumeRequest(sessionId);
   if (!gate.ok) {
@@ -166,10 +168,9 @@ app.post("/api/chat", async (c) => {
         await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: note }) });
       }
 
-      if (harnessId === "opencode") {
-        if (!harness) throw new Error("The opencode harness is not running.");
+      if (ranHarness === "opencode" && active) {
         const diff = await withProviderSession(sessionId, () =>
-          harness!.runTurn({
+          active.runTurn({
             sessionKey: sessionId,
             text: userText,
             signal: c.req.raw.signal,
@@ -191,7 +192,7 @@ app.post("/api/chat", async (c) => {
           await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: block }) });
         }
       } else {
-        const chunks = mock ? streamMock(userText, harnessId, before.slowed) : streamFlash(systemMessages(messages, harnessId), before.slowed);
+        const chunks = mock ? streamMock(userText, ranHarness, before.slowed) : streamFlash(systemMessages(messages, ranHarness), before.slowed);
         for await (const chunk of chunks) {
           reply += chunk;
           await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: chunk }) });
@@ -210,8 +211,8 @@ app.post("/api/chat", async (c) => {
         type: "done",
         ad: ads.below,
         usage,
-        harness: harnessId,
-        mockLlm: harnessId === "stub" ? true : mock,
+        harness: ranHarness,
+        mockLlm: ranHarness === "stub" ? true : mock,
       }),
     });
   });
