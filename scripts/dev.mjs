@@ -95,7 +95,6 @@ launch("pnpm", ["--filter", "@subspaces/backend", "dev"], {
 
 launch("pnpm", ["--filter", "@subspaces/landing", "dev"], {
   SUBSPACES_LANDING_PORT: LANDING_PORT,
-  VITE_IDE_URL: `http://127.0.0.1:${IDE_PORT}`,
 });
 
 launch(

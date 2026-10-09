@@ -45,9 +45,9 @@ if (moved < 0.35) {
   throw new Error(`Hero shimmer did not move (delta ${moved.toFixed(3)})`);
 }
 
-const cta = await page.$eval("[data-testid='open-ide']", (node) => node.getAttribute("href"));
-if (!cta || !cta.includes(`:${idePort}`)) {
-  throw new Error(`Open in browser points at ${cta}, expected port ${idePort}`);
+const download = await page.$eval("[data-testid='download-linux-x64']", (node) => node.getAttribute("href"));
+if (!download || !download.includes("subspaces-releases")) {
+  throw new Error(`Download points at ${download}`);
 }
 
 await page.screenshot({ path: landingOut, fullPage: false });

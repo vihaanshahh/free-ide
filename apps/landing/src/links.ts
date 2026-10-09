@@ -1,49 +1,35 @@
-/** Public GitHub Releases. Not used until a download base URL is set at build time. */
-export const PUBLIC_DOWNLOAD_BASE =
-  "https://github.com/vihaanshahh/subspaces-releases/releases/latest/download";
+/** Public beta downloads. Hardcoded so the page needs no build env vars. */
+export const PUBLIC_RELEASE_REPO = "vihaanshahh/subspaces-releases";
+
+export const PUBLIC_DOWNLOAD_BASE = `https://github.com/${PUBLIC_RELEASE_REPO}/releases/latest/download`;
+
+export const BETA_TAG = "v0.1.0-beta";
 
 export const RELEASE_TARGETS = [
-  { id: "darwin-arm64", label: "Mac Apple Silicon", file: "subspaces-si-darwin-arm64.tar.gz" },
-  { id: "darwin-x64", label: "Mac Intel", file: "subspaces-si-darwin-x64.tar.gz" },
-  { id: "linux-x64", label: "Linux", file: "subspaces-si-linux-x64.tar.gz" },
+  {
+    id: "darwin-arm64",
+    label: "Mac Apple Silicon",
+    file: "subspaces-si-0.1.0-darwin-arm64.tar.gz",
+    size: 211327230,
+  },
+  {
+    id: "darwin-x64",
+    label: "Mac Intel",
+    file: "subspaces-si-0.1.0-darwin-x64.tar.gz",
+    size: 231889067,
+  },
+  {
+    id: "linux-x64",
+    label: "Linux",
+    file: "subspaces-si-0.1.0-linux-x64.tar.gz",
+    size: 240373394,
+  },
 ] as const;
 
 export type ReleaseTargetId = (typeof RELEASE_TARGETS)[number]["id"];
 
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "0.0.0.0", "::1", "[::1]"]);
-
-export function isLoopback(value: string): boolean {
-  try {
-    const host = new URL(value).hostname.replace(/^\[|\]$/g, "");
-    return LOOPBACK_HOSTS.has(host);
-  } catch {
-    return false;
-  }
-}
-
-function usable(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed || isLoopback(trimmed)) return null;
-  return trimmed.replace(/\/+$/, "");
-}
-
-/**
- * Download buttons appear only when a public base URL is configured.
- * An empty config stays on the waitlist and never falls back to the private repo.
- * VITE_DOWNLOAD_URL is honored only when it already ends in `/download`.
- */
-export function downloadBase(env: { base?: string; vite?: string; next?: string }): string | null {
-  const explicit = usable(env.base);
-  if (explicit) return explicit;
-  for (const candidate of [env.vite, env.next]) {
-    const value = usable(candidate);
-    if (value && value.endsWith("/download")) return value;
-  }
-  return null;
-}
-
-export function assetUrl(base: string, file: string): string {
-  return `${base.replace(/\/+$/, "")}/${file}`;
+export function assetUrl(file: string): string {
+  return `${PUBLIC_DOWNLOAD_BASE}/${file}`;
 }
 
 export function formatBytes(size: number): string {
@@ -65,25 +51,6 @@ export function highlightTarget(platform: string, arch: string): ReleaseTargetId
 }
 
 /** GitHub's REST API sends CORS headers. Release asset files do not. */
-export function releasesApiUrl(base: string): string | null {
-  try {
-    const url = new URL(base);
-    if (url.hostname !== "github.com") return null;
-    const match = url.pathname.match(/^\/([^/]+)\/([^/]+)\/releases\/latest\/download\/?$/);
-    if (!match) return null;
-    return `https://api.github.com/repos/${match[1]}/${match[2]}/releases/latest`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Local `pnpm dev` may pass a loopback editor URL.
- * A production build drops loopback so the published page never links at 127.0.0.1.
- */
-export function ideHref(value: string | undefined, dev: boolean): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  if (!dev && isLoopback(trimmed)) return null;
-  return trimmed;
+export function releasesApiUrl(): string {
+  return `https://api.github.com/repos/${PUBLIC_RELEASE_REPO}/releases/latest`;
 }

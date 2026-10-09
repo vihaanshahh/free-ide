@@ -1,4 +1,4 @@
-/** Stable public download names. Landing buttons and the public release use the same files. */
+/** Platforms for the public release. Packaged archives keep their versioned filenames. */
 
 export const PUBLIC_RELEASE_REPO = "vihaanshahh/subspaces-releases";
 
