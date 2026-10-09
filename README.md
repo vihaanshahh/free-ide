@@ -17,7 +17,7 @@ The first `pnpm dev` downloads the code-server tarball and the pinned OpenCode b
 - the editor at [http://127.0.0.1:41823](http://127.0.0.1:41823) (auth disabled for local demo)
 - the proxy at [http://127.0.0.1:41824](http://127.0.0.1:41824)
 
-The landing page is separate from the editor. Its hero is a quieter Canvas2D dither of the IDE, graded to Forest Ink and sage. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
+The landing page is separate from the editor. Its hero is a Forest Ink field of ASCII stars drifting outward, sage to cream. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
 
 `MOCK_LLM=1` is the default when `LLM_API_KEY` is unset. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill is still a placeholder adapter and does not call the model or edit files.
 
@@ -135,7 +135,7 @@ Copy `.env.example`. Never commit values.
 
 ## Layout
 
-- `apps/landing` — cream marketing page and the green dither hero
+- `apps/landing` — cream marketing page and the ASCII starfield hero
 - `apps/backend` — chat adapter, OpenAI-compatible `/v1` proxy, parallel `getAds` (`below_response` and `right_response` / `sidebar`), in-memory token ledger
 - `vendor/opencode` — pinned OpenCode source (submodule). The binary is downloaded beside it and gitignored
 - `apps/extension` — auxiliary-bar chat and an explorer sponsored view, loaded by code-server

@@ -38,11 +38,11 @@ const moved = meanAbsDiff(first.sig, second.sig);
 if (!(first.g > first.r + 2 && first.g > first.b + 2)) {
   throw new Error(`Hero is not green-dominant (rgb ${first.r.toFixed(1)}, ${first.g.toFixed(1)}, ${first.b.toFixed(1)})`);
 }
-if (first.spread < 18) {
-  throw new Error(`Hero dither has too little contrast (spread ${first.spread.toFixed(1)})`);
+if (first.bright < 4) {
+  throw new Error(`Starfield drew too few glyphs (${first.bright})`);
 }
-if (moved < 0.35) {
-  throw new Error(`Hero shimmer did not move (delta ${moved.toFixed(3)})`);
+if (first.hash === second.hash) {
+  throw new Error(`Starfield did not move (delta ${moved.toFixed(3)})`);
 }
 
 const download = await page.$eval("[data-testid='download-linux-x64']", (node) => node.getAttribute("href"));
@@ -193,9 +193,11 @@ async function sampleCanvas(target) {
     let n = 0;
     let min = 255;
     let max = 0;
+    let bright = 0;
+    let hash = 0;
     const sig = [];
-    for (let y = Math.floor(height * 0.18); y < Math.floor(height * 0.72); y += 6) {
-      for (let x = Math.floor(width * 0.12); x < Math.floor(width * 0.88); x += 6) {
+    for (let y = 0; y < height; y += 4) {
+      for (let x = 0; x < width; x += 4) {
         const i = (y * width + x) * 4;
         r += data[i];
         g += data[i + 1];
@@ -203,11 +205,13 @@ async function sampleCanvas(target) {
         const luma = data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722;
         if (luma < min) min = luma;
         if (luma > max) max = luma;
+        if (luma > 80) bright += 1;
+        hash = (hash + data[i] + data[i + 1] * 3 + data[i + 2] * 7) | 0;
         if (sig.length < 180) sig.push(data[i], data[i + 1], data[i + 2]);
         n += 1;
       }
     }
-    return { r: r / n, g: g / n, b: b / n, spread: max - min, sig };
+    return { r: r / n, g: g / n, b: b / n, spread: max - min, sig, bright, hash };
   });
 }
 
