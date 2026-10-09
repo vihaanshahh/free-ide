@@ -62,7 +62,7 @@ The marketing page builds on its own. It does not need the backend or code-serve
 
 | Variable | Role |
 | --- | --- |
-| `VITE_DOWNLOAD_URL` or `NEXT_PUBLIC_DOWNLOAD_URL` | Releases page for the Download button. Fallback is `https://github.com/subspaces-si/subspaces/releases/latest`. |
+| `VITE_DOWNLOAD_URL` or `NEXT_PUBLIC_DOWNLOAD_URL` | Releases page for the Download button. Fallback is `https://github.com/vihaanshahh/subspaces/releases/latest`. |
 | `VITE_IDE_URL` | Public **Open in browser** URL. Leave unset until an editor is hosted. A loopback value is dropped from the production build. |
 
 `pnpm dev` still sets `VITE_IDE_URL` to the local editor so the demo CTA works on your machine.

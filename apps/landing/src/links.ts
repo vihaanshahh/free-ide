@@ -1,5 +1,5 @@
 /** Fallback until VITE_DOWNLOAD_URL or NEXT_PUBLIC_DOWNLOAD_URL is set at build time. */
-export const DEFAULT_DOWNLOAD_URL = "https://github.com/subspaces-si/subspaces/releases/latest";
+export const DEFAULT_DOWNLOAD_URL = "https://github.com/vihaanshahh/subspaces/releases/latest";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "0.0.0.0", "::1", "[::1]"]);
 
