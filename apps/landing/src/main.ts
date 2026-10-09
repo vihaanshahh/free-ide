@@ -1,13 +1,29 @@
 import mark from "../../../packages/brand/logo/mark.svg?raw";
 import { AsciiField } from "./hero";
-import { ideUrl, landingParams } from "./params";
+import { downloadHref, ideHref } from "./links";
+import { landingParams } from "./params";
 import "./style.css";
 
 const markSlot = document.querySelector("#mark");
 if (markSlot) markSlot.innerHTML = mark;
 
+const download = downloadHref({
+  vite: import.meta.env.VITE_DOWNLOAD_URL,
+  next: import.meta.env.NEXT_PUBLIC_DOWNLOAD_URL,
+});
+const ide = ideHref(import.meta.env.VITE_IDE_URL, import.meta.env.DEV);
+
+for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-download]")) {
+  link.href = download;
+}
+
 for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-ide]")) {
-  link.href = ideUrl;
+  if (!ide) {
+    link.hidden = true;
+    continue;
+  }
+  link.hidden = false;
+  link.href = ide;
 }
 
 const canvas = document.querySelector<HTMLCanvasElement>("#field");

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { estimateTokens } from "./ledger.ts";
 import { ledger } from "./runtime.ts";
-import { mockLlmEnabled } from "./env.ts";
+import { mockLlmEnabled, repoRoot } from "./env.ts";
 
 export const PRIMARY_MODEL = "glm-5.3-flash";
 export const FALLBACK_MODEL = "deepseek-v4.1-flash";
@@ -132,7 +132,7 @@ function lastUserText(messages: Array<Record<string, unknown>>): string {
 export function workingDirectory(system: string): string {
   const match = /Working directory:\s*(\S+)/.exec(system);
   if (match?.[1]) return match[1];
-  return process.env.SUBSPACES_WORKSPACE || path.resolve(import.meta.dirname, "../../../examples/tallyhouse-api");
+  return process.env.SUBSPACES_WORKSPACE || path.join(repoRoot(), "examples", "tallyhouse-api");
 }
 
 function toolNames(body: ChatCompletionBody): Set<string> {

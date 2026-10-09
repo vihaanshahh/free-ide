@@ -1,5 +1,6 @@
 {
   "name": "subspaces",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.33.4",
   "engines": {
@@ -9,10 +10,12 @@
     "setup": "node scripts/setup-code-server.mjs && node scripts/setup-opencode.mjs",
     "build": "pnpm --filter @subspaces/chat-ui build && pnpm --filter @subspaces/landing build",
     "dev": "node scripts/dev.mjs",
-    "test": "pnpm --filter @subspaces/backend test && node --experimental-strip-types --test apps/landing/src/pipeline.test.ts",
+    "test": "pnpm --filter @subspaces/backend test && node --experimental-strip-types --test apps/landing/src/pipeline.test.ts apps/landing/src/links.test.ts",
+    "package": "node scripts/package-ide.mjs",
     "screenshot": "node scripts/screenshot.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.28.2",
     "puppeteer-core": "^24.15.0"
   },
   "pnpm": {

@@ -24,8 +24,8 @@ Do not ship Microsoft editor trademarks or logos in product strings. "Built on C
 Pinned tag **v1.18.27** (MIT, Copyright (c) 2025 opencode).
 
 - Source: git submodule `vendor/opencode`, remote https://github.com/sst/opencode (the repository also lives at https://github.com/anomalyco/opencode). Pinned commit `4b7e19e315cca414121ba1d61523fef74bb3ae8b`, which is tag `v1.18.27`.
-- Runtime: `scripts/setup-opencode.mjs` downloads `opencode-linux-x64.tar.gz` for that tag into `vendor/opencode-runtime/` (gitignored). Do not commit the binary.
-- Upkeep: check out the new tag in `vendor/opencode`, set `OPENCODE_VERSION` in `scripts/setup-opencode.mjs` and `apps/backend/src/harness.ts` to the same tag, then re-run `pnpm setup`.
+- Runtime: `scripts/setup-opencode.mjs` downloads the host build for that tag into `vendor/opencode-runtime/` (gitignored). Linux x64 is a `.tar.gz`. macOS arm64 and x64 are `.zip`. Asset names live in `scripts/targets.mjs`. Do not commit the binary.
+- Upkeep: check out the new tag in `vendor/opencode`, set `OPENCODE_VERSION` in `scripts/targets.mjs` and `apps/backend/src/harness.ts` to the same tag, then re-run `pnpm setup`.
 - The server is `opencode serve` on port 41826. Its provider `subspaces` uses `@ai-sdk/openai-compatible` with `baseURL` pointed at this repo's `/v1` proxy. Model calls do not go to OpenCode Zen.
 
 ## Not done yet

@@ -88,6 +88,14 @@ a {
   border-radius: 10px;
 }
 
+.nav-actions,
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .nav-cta,
 .hero-cta {
   display: inline-flex;
@@ -111,9 +119,23 @@ a {
   font-size: 16px;
 }
 
+.nav-cta.download,
+.hero-cta.download {
+  background: transparent;
+  color: var(--cream);
+  border-color: rgba(255, 254, 252, 0.7);
+}
+
 .nav-cta:hover,
 .hero-cta:hover {
   background: var(--lime);
+  color: var(--ink);
+  border-color: transparent;
+}
+
+.nav-cta[hidden],
+.hero-cta[hidden] {
+  display: none;
 }
 
 .brand:focus-visible,

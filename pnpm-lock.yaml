@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       puppeteer-core:
         specifier: ^24.15.0
         version: 24.43.1

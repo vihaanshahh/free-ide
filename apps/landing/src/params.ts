@@ -67,5 +67,3 @@ export const landingParams: AsciiParams = {
   progressivePosition: 55,
   directionalBothSides: false,
 };
-
-export const ideUrl = import.meta.env.VITE_IDE_URL || "http://127.0.0.1:41823";

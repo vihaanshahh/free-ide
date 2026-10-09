@@ -13,6 +13,11 @@ export function codeServerBin() {
   return path.join(VENDOR, "bin", "code-server");
 }
 
+/** Patch product strings inside an extracted code-server tree. */
+export function brandCodeServer(installRoot) {
+  brand(installRoot);
+}
+
 export function setup() {
   fs.mkdirSync(path.join(ROOT, "vendor"), { recursive: true });
   if (!fs.existsSync(codeServerBin())) {

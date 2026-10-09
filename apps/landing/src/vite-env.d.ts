@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_IDE_URL?: string;
+  readonly VITE_DOWNLOAD_URL?: string;
+  readonly NEXT_PUBLIC_DOWNLOAD_URL?: string;
 }
 
 interface ImportMeta {
