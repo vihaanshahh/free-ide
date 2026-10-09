@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#fffefc" />
     <meta
       name="description"
-      content="subspaces.si is a free, ad-funded coding chat inside a real editor in the browser."
+      content="subspaces.si is a free AI coding IDE paid for by ads. A real editor, an opencode agent, and a sponsored card under the reply."
     />
     <title>subspaces.si</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -21,41 +21,193 @@
           <span id="mark" aria-hidden="true"></span>
           subspaces.si
         </a>
-        <div class="nav-actions">
-          <a class="nav-cta" data-ide hidden href="https://github.com/vihaanshahh/subspaces/releases/latest">Open in browser</a>
-          <a class="nav-cta download" data-download data-testid="download" href="https://github.com/vihaanshahh/subspaces/releases/latest">Download</a>
-        </div>
+        <nav class="nav" aria-label="Primary">
+          <a href="#demo">Demo</a>
+          <a href="#how">How it works</a>
+          <a href="#faq">FAQ</a>
+          <a class="nav-cta" data-ide data-testid="open-ide" hidden href="#product">Open in browser</a>
+          <a class="nav-cta" href="#download">Download</a>
+        </nav>
       </div>
-      <div class="hero-copy">
-        <p class="eyebrow">Free, ad-funded</p>
-        <h1>The editor is real. The chat is free.</h1>
+      <div class="hero-copy" id="download">
+        <p class="eyebrow">Free AI coding IDE</p>
+        <h1>A coding IDE paid for by ads.</h1>
         <p class="lede">
-          subspaces.si is Code - OSS in the browser. A Flash model answers beside the file, and a sponsored card under the reply keeps it free.
+          subspaces.si is Code - OSS in the browser. The opencode agent edits the file. A sponsored card under the reply keeps the Flash tokens free. No Pro tier.
         </p>
-        <div class="hero-actions">
-          <a class="hero-cta" data-ide data-testid="open-ide" hidden href="https://github.com/vihaanshahh/subspaces/releases/latest">Open in browser</a>
-          <a class="hero-cta download" data-download href="https://github.com/vihaanshahh/subspaces/releases/latest">Download</a>
+        <div class="download-block" data-download-actions data-testid="downloads" hidden>
+          <p class="meta" data-download-meta data-testid="download-meta">Latest release</p>
+          <div class="hero-actions">
+            <a class="hero-cta" data-download data-target="darwin-arm64" data-file="subspaces-si-darwin-arm64.tar.gz" data-testid="download-darwin-arm64" href="#download">
+              <span>Mac Apple Silicon</span>
+              <span data-size></span>
+              <span class="for-you" data-for-you hidden>For this computer</span>
+            </a>
+            <a class="hero-cta" data-download data-target="darwin-x64" data-file="subspaces-si-darwin-x64.tar.gz" data-testid="download-darwin-x64" href="#download">
+              <span>Mac Intel</span>
+              <span data-size></span>
+              <span class="for-you" data-for-you hidden>For this computer</span>
+            </a>
+            <a class="hero-cta" data-download data-target="linux-x64" data-file="subspaces-si-linux-x64.tar.gz" data-testid="download-linux-x64" href="#download">
+              <span>Linux</span>
+              <span data-size></span>
+              <span class="for-you" data-for-you hidden>For this computer</span>
+            </a>
+          </div>
         </div>
+        <form class="waitlist" data-waitlist data-testid="waitlist">
+          <p class="waitlist-kicker">Downloads coming soon.</p>
+          <label class="email">
+            <span class="sr">Email</span>
+            <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <button type="submit">Join the waitlist</button>
+          <p class="waitlist-note" data-waitlist-note hidden>Saved on this page only. Nothing was sent to a server.</p>
+        </form>
       </div>
     </header>
-    <main id="product" class="sheet">
-      <div class="sheet-inner">
-        <section>
-          <h2>Code-server, branded</h2>
-          <p>The shell is the real editor, named subspaces.si. It opens a small invoicing API so you can edit in the browser immediately.</p>
-        </section>
-        <section>
-          <h2>Chat, not a subscription</h2>
-          <p>The opencode harness streams a Flash reply. A second harness sits beside it, still unwired. There is no Pro tier.</p>
-        </section>
-        <section>
-          <h2>Ads under the answer</h2>
-          <p>A white sponsored card sits below the reply, and another can fill the explorer. The ledger slows at 15 million tokens. It does not sell an upgrade.</p>
-        </section>
-      </div>
+
+    <main id="product">
+      <section class="proof" aria-label="What it is built on">
+        <ul>
+          <li>Code - OSS</li>
+          <li>opencode agent</li>
+          <li>Gravity ads</li>
+          <li>Flash models only</li>
+          <li>No Pro tier</li>
+        </ul>
+      </section>
+
+      <section class="band" id="demo">
+        <div class="band-copy">
+          <p class="kicker">Demo</p>
+          <h2>Watch it edit a file.</h2>
+          <p>
+            Recorded in subspaces.si. A prompt in the chat, an opencode edit to <code>listInvoices</code>, and the sponsored card under the reply.
+          </p>
+          <button class="text-btn" type="button" data-demo-controls>Show video controls</button>
+        </div>
+        <div class="video-frame">
+          <video
+            data-demo
+            data-testid="demo-video"
+            poster="/demo.jpg"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+          >
+            <source src="/demo.webm" type="video/webm" />
+            <source src="/demo.mp4" type="video/mp4" />
+          </video>
+        </div>
+      </section>
+
+      <section class="band how" id="how">
+        <div class="band-intro">
+          <p class="kicker">How it works</p>
+          <h2>Four steps. Then the file changes.</h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-no">01</span>
+            <h3>Watch an ad, unlock tokens</h3>
+            <p>The reply is a cheap Flash model. A sponsored card under it is what pays for those tokens. The ledger slows at 15 million tokens. It does not sell an upgrade.</p>
+          </li>
+          <li>
+            <span class="step-no">02</span>
+            <h3>A real editor, via code-server</h3>
+            <p>The shell is Code - OSS, branded subspaces.si. It opens a small invoicing API so you can edit in the browser immediately.</p>
+          </li>
+          <li>
+            <span class="step-no">03</span>
+            <h3>The opencode agent edits the file</h3>
+            <p>Ask it to change <code>src/routes/invoices.ts</code>. The harness reads the file and applies the edit in the workspace.</p>
+          </li>
+          <li>
+            <span class="step-no">04</span>
+            <h3>A Gravity card sits under the reply</h3>
+            <p>The sponsored unit stays below the answer. Another can fill the explorer. Empty fill renders nothing when a live key is set.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="band features" aria-labelledby="features-title">
+        <div class="band-intro">
+          <p class="kicker">The product</p>
+          <h2 id="features-title">Free on purpose.</h2>
+        </div>
+        <div class="grid">
+          <article>
+            <h3>No subscription</h3>
+            <p>There is no Pro tier and no frontier-model upsell. The bet is steady chat paid for by ads.</p>
+          </article>
+          <article>
+            <h3>Code - OSS shell</h3>
+            <p>code-server v4.141.0, named subspaces.si. The same editor you already know, opened on a sample API.</p>
+          </article>
+          <article>
+            <h3>Flash only</h3>
+            <p>Default model <code>glm-5.3-flash</code>, fallback <code>deepseek-v4.1-flash</code>. The proxy strips code, paths, and secrets before any ad request.</p>
+          </article>
+          <article>
+            <h3>Sponsored card</h3>
+            <p>A white card under the reply, and a slot in the explorer. Test mode is the default until you opt into production.</p>
+          </article>
+          <article>
+            <h3>15M soft cap</h3>
+            <p>The in-memory ledger counts tokens and slows replies at the cap. It does not block, and it does not ask you to pay.</p>
+          </article>
+          <article>
+            <h3>One command</h3>
+            <p>Unpack the archive and run <code>./start</code>. Node.js 22 downloads the pinned opencode binary. Secrets stay in a gitignored <code>.env</code>.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band faq" id="faq">
+        <div class="band-intro">
+          <p class="kicker">FAQ</p>
+          <h2>Short answers.</h2>
+        </div>
+        <div class="faq-list">
+          <details>
+            <summary>Is it really free?</summary>
+            <p>Yes for the person using it. Ads and a sponsored theme are meant to cover a Flash model. There is nothing to subscribe to.</p>
+          </details>
+          <details>
+            <summary>Where do the downloads come from?</summary>
+            <p>From a public GitHub Release, not from this page's host. The buttons use <code>VITE_DOWNLOAD_BASE_URL</code>. Until that is set, this page shows the waitlist instead of a broken link.</p>
+          </details>
+          <details>
+            <summary>Does any of this bill me?</summary>
+            <p>The archives are not stored on Vercel Blob or a paid CDN. Public GitHub Release bandwidth is free. The demo video on this page stays under 10 MB so static hosting stays small. Do not attach a spending limit or a paid runner.</p>
+          </details>
+          <details>
+            <summary>What runs in the browser versus on my machine?</summary>
+            <p>This marketing page is static. The editor, code-server, and <code>opencode serve</code> run from the archive you download, or from <code>pnpm dev</code> locally.</p>
+          </details>
+          <details>
+            <summary>What is the ad?</summary>
+            <p>A Gravity unit under the assistant reply. Without a key, a local card fills the slot. With a key, an empty response renders nothing.</p>
+          </details>
+        </div>
+      </section>
     </main>
+
     <footer>
-      <div class="footer-inner">subspaces.si · Built on Code - OSS · Satoshi by Indian Type Foundry</div>
+      <div class="footer-inner">
+        <div>
+          <p class="footer-brand">subspaces.si</p>
+          <p>Built on Code - OSS. Satoshi by Indian Type Foundry.</p>
+        </div>
+        <div class="footer-links">
+          <a href="#download">Download</a>
+          <a href="#demo">Demo</a>
+          <a href="#faq">FAQ</a>
+        </div>
+      </div>
     </footer>
   </body>
 </html>
