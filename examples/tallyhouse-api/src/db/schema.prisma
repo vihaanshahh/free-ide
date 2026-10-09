@@ -1,0 +1,6 @@
+model Invoice {
+  id         String   @id
+  status     String
+  createdAt  DateTime
+  totalCents Int
+}

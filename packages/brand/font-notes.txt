@@ -1,0 +1,13 @@
+Satoshi
+Copyright (c) Indian Type Foundry
+Distributed via Fontshare under the ITF Free Font License.
+https://www.fontshare.com/fonts/satoshi
+
+Weights committed: 400, 500, 700 (woff2) in packages/brand/fonts/.
+Used for the subspaces.si wordmark and product UI.
+Code, terminal, and diffs stay monospace (ui-monospace / Menlo / Consolas).
+Fallback stack: Satoshi, Inter, system-ui, sans-serif.
+Inter is an emergency substitute only and is not bundled.
+
+Gravity ad cards keep the ad component's own Inter/system type.
+Do not restyle those cards with Satoshi.

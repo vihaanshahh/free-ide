@@ -1,0 +1,15 @@
+node_modules/
+uploads/
+dist/
+.env
+.env.local
+.subspaces/
+vendor/*
+!vendor/opencode
+!vendor/opencode/**
+*.log
+.DS_Store
+apps/extension/media/chat.js
+apps/extension/media/chat.css
+coverage/
+*.tsbuildinfo
