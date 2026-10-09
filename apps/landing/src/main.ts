@@ -1,22 +1,22 @@
 import mark from "../../../packages/brand/logo/mark.svg?raw";
+import { applyDownloads, bindDemoVideo, bindWaitlist } from "./downloads";
 import { AsciiField } from "./hero";
-import { downloadHref, ideHref } from "./links";
+import { ideHref } from "./links";
 import { landingParams } from "./params";
 import "./style.css";
 
 const markSlot = document.querySelector("#mark");
 if (markSlot) markSlot.innerHTML = mark;
 
-const download = downloadHref({
+applyDownloads({
+  base: import.meta.env.VITE_DOWNLOAD_BASE_URL,
   vite: import.meta.env.VITE_DOWNLOAD_URL,
   next: import.meta.env.NEXT_PUBLIC_DOWNLOAD_URL,
 });
+bindWaitlist();
+bindDemoVideo();
+
 const ide = ideHref(import.meta.env.VITE_IDE_URL, import.meta.env.DEV);
-
-for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-download]")) {
-  link.href = download;
-}
-
 for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-ide]")) {
   if (!ide) {
     link.hidden = true;
