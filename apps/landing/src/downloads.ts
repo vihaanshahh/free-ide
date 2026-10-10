@@ -3,7 +3,6 @@ import {
   PUBLIC_DOWNLOAD_BASE,
   RELEASE_TARGETS,
   assetUrl,
-  formatBytes,
   highlightTarget,
   releasesApiUrl,
   type ReleaseTargetId,
@@ -45,21 +44,15 @@ export function applyDownloads(): void {
   for (const link of links) {
     const target = RELEASE_TARGETS.find((item) => item.id === link.dataset.target);
     if (!target) continue;
+    if (link.closest("[data-coming-soon]")) {
+      link.addEventListener("click", (event) => event.preventDefault());
+      continue;
+    }
     link.href = assetUrl(target.file);
-    const sizeNode = link.querySelector<HTMLElement>("[data-size]");
-    if (sizeNode) sizeNode.textContent = formatBytes(target.size);
     const match = recommended === target.id;
     link.dataset.recommended = match ? "true" : "false";
     if (match) link.setAttribute("aria-current", "true");
     else link.removeAttribute("aria-current");
-    const badge = link.querySelector<HTMLElement>("[data-for-you]");
-    if (badge) badge.hidden = !match;
-  }
-
-  const picked = RELEASE_TARGETS.find((item) => item.id === recommended);
-  const summary = [BETA_TAG, picked?.label, picked ? formatBytes(picked.size) : ""].filter(Boolean).join(" · ");
-  for (const meta of document.querySelectorAll<HTMLElement>("[data-download-meta]")) {
-    meta.textContent = summary || BETA_TAG;
   }
 
   fetchReleaseAssets()
@@ -69,17 +62,8 @@ export function applyDownloads(): void {
         const id = link.dataset.target as ReleaseTargetId | undefined;
         if (!id) continue;
         const live = meta.byTarget[id];
-        if (!live) continue;
+        if (!live || link.closest("[data-coming-soon]")) continue;
         link.href = `${PUBLIC_DOWNLOAD_BASE}/${live.name}`;
-        const sizeNode = link.querySelector<HTMLElement>("[data-size]");
-        if (sizeNode) sizeNode.textContent = formatBytes(live.size);
-      }
-      const livePick = recommended ? meta.byTarget[recommended] : undefined;
-      const liveSummary = [meta.version, picked?.label, livePick ? formatBytes(livePick.size) : picked ? formatBytes(picked.size) : ""]
-        .filter(Boolean)
-        .join(" · ");
-      for (const metaEl of document.querySelectorAll<HTMLElement>("[data-download-meta]")) {
-        metaEl.textContent = liveSummary || meta.version;
       }
     })
     .catch(() => undefined);

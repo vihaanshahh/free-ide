@@ -27,23 +27,9 @@ page.setDefaultTimeout(120000);
 
 if (!onlyOpencode) {
 await page.goto(`http://127.0.0.1:${landingPort}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
-await page.waitForSelector("#field[data-ready='true']", { timeout: 30000 });
+await page.waitForSelector("[data-testid='demo-video']", { timeout: 30000 });
 await page.evaluate(() => document.fonts.ready);
 await delay(500);
-
-const first = await sampleCanvas(page);
-await delay(450);
-const second = await sampleCanvas(page);
-const moved = meanAbsDiff(first.sig, second.sig);
-if (!(first.g > first.r + 2 && first.g > first.b + 2)) {
-  throw new Error(`Hero is not green-dominant (rgb ${first.r.toFixed(1)}, ${first.g.toFixed(1)}, ${first.b.toFixed(1)})`);
-}
-if (first.bright < 4) {
-  throw new Error(`Starfield drew too few glyphs (${first.bright})`);
-}
-if (first.hash === second.hash) {
-  throw new Error(`Starfield did not move (delta ${moved.toFixed(3)})`);
-}
 
 const download = await page.$eval("[data-testid='download-linux-x64']", (node) => node.getAttribute("href"));
 if (!download || !download.includes("subspaces-releases")) {
@@ -180,44 +166,3 @@ function assertLightCard(file) {
   }
 }
 
-async function sampleCanvas(target) {
-  return target.evaluate(() => {
-    const canvas = document.querySelector("#field");
-    if (!(canvas instanceof HTMLCanvasElement)) throw new Error("missing canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) throw new Error("missing context");
-    const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    let n = 0;
-    let min = 255;
-    let max = 0;
-    let bright = 0;
-    let hash = 0;
-    const sig = [];
-    for (let y = 0; y < height; y += 4) {
-      for (let x = 0; x < width; x += 4) {
-        const i = (y * width + x) * 4;
-        r += data[i];
-        g += data[i + 1];
-        b += data[i + 2];
-        const luma = data[i] * 0.2126 + data[i + 1] * 0.7152 + data[i + 2] * 0.0722;
-        if (luma < min) min = luma;
-        if (luma > max) max = luma;
-        if (luma > 80) bright += 1;
-        hash = (hash + data[i] + data[i + 1] * 3 + data[i + 2] * 7) | 0;
-        if (sig.length < 180) sig.push(data[i], data[i + 1], data[i + 2]);
-        n += 1;
-      }
-    }
-    return { r: r / n, g: g / n, b: b / n, spread: max - min, sig, bright, hash };
-  });
-}
-
-function meanAbsDiff(a, b) {
-  const n = Math.min(a.length, b.length);
-  let sum = 0;
-  for (let i = 0; i < n; i += 1) sum += Math.abs(a[i] - b[i]);
-  return n === 0 ? 0 : sum / n;
-}

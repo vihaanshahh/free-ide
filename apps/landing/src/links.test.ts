@@ -44,9 +44,9 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.equal(html.includes("github.com/vihaanshahh/subspaces/releases"), false);
   assert.equal(html.includes("data-waitlist"), false);
   assert.equal(html.includes("VITE_"), false);
-  assert.match(html, /Public beta/);
+  assert.match(html, /class="eyebrow">Beta</);
   assert.match(html, /data-testid="demo-video"/);
-  assert.match(html, /id="field"/);
+  assert.equal(html.includes('id="field"'), false);
   assert.equal(html.includes("dither-frame"), false);
   assert.equal(html.includes("hero-source"), false);
   for (const target of RELEASE_TARGETS) {
