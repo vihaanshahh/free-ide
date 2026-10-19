@@ -1,0 +1,14 @@
+{
+  "name": "@subspaces/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "subspaces.si terminal wrapper around the pinned opencode binary",
+  "bin": {
+    "subspaces": "./bin/subspaces.js"
+  },
+  "scripts": {
+    "subspaces": "node --disable-warning=ExperimentalWarning --experimental-strip-types src/cli.ts",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-strip-types --test src/cli.test.ts"
+  }
+}
