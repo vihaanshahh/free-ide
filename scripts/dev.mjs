@@ -85,8 +85,6 @@ function launch(command, args, extraEnv) {
 }
 
 launch("pnpm", ["--filter", "@subspaces/backend", "dev"], {
-  MOCK_LLM: process.env.MOCK_LLM || "1",
-  MOCK_ADS: process.env.MOCK_ADS ?? (process.env.GRAVITY_API_KEY ? "0" : "1"),
   SUBSPACES_API_PORT: API_PORT,
   OPENCODE_BIN: opencodeBin(),
   OPENCODE_PORT: process.env.OPENCODE_PORT || "41826",

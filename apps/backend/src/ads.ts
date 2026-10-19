@@ -65,9 +65,7 @@ export const AD_PLACEMENTS = [
 ] as const;
 
 function mockEnabled(): boolean {
-  if (process.env.MOCK_ADS === "0") return false;
-  if (process.env.MOCK_ADS === "1") return true;
-  return !process.env.GRAVITY_API_KEY;
+  return !process.env.GRAVITY_API_KEY?.trim();
 }
 
 function stringField(raw: Record<string, unknown>, key: string): string {

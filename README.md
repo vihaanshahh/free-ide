@@ -19,9 +19,9 @@ The first `pnpm dev` downloads the code-server tarball and the pinned OpenCode b
 
 The landing page is separate from the editor. Its hero is a Forest Ink field of ASCII stars drifting outward, sage to cream. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
 
-`MOCK_LLM=1` is the default when `LLM_API_KEY` is unset. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill is still a placeholder adapter and does not call the model or edit files.
+With `LLM_API_KEY` unset, chat and `/v1` stay on the canned provider. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill does not run tools. On the hosted API, where opencode is not running, a configured key streams the primary model and falls back to DeepSeek. `mockLlm` is true only when `LLM_API_KEY` is empty.
 
-Gravity test mode is the default (`GRAVITY_PRODUCTION` unset or `0`). Put `GRAVITY_API_KEY` and `GRAVITY_PIXEL_ID` in a gitignored `.env` (see `.env.example`). Do not commit them. Without a key, `MOCK_ADS=1` fills the slot with a local card. With a key, empty fill renders nothing. The chat panel loads the Gravity pixel from `https://code.trygravity.ai/gr-pix.js` only when `GRAVITY_PIXEL_ID` is set.
+Gravity test mode is the default. Set `GRAVITY_PRODUCTION=1` to leave it. Put `GRAVITY_API_KEY` in a gitignored `.env` (see `.env.example`). Do not commit it. Without a key, the slot uses a local card. With a key, empty fill renders nothing. The chat panel always loads the public Gravity pixel `9f5969b9-4f34-449e-8360-992259cd0f50`.
 
 ```bash
 pnpm test
@@ -125,7 +125,9 @@ One Vercel project, repo root, configured in `vercel.json` as services. Do not s
 
 The landing service still builds with `pnpm --filter @subspaces/landing build`. It imports `packages/brand`, so leave **Include source files outside of the Root Directory** enabled. There is no service binding and no required landing environment variable. Download URLs are constants in `apps/landing/src/links.ts`.
 
-`packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, a chat turn that asks for opencode gets the stub or Flash reply and does not edit files.
+`packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, opencode is off. `/api/chat` streams the primary model when `LLM_API_KEY` is set, and the canned stub reply when it is not. It does not edit files. Both functions use `maxDuration` 60.
+
+`/v1/chat/completions` and `/api/chat` accept the desktop app (`x-subspaces-client: desktop`), the CLI (`x-subspaces-client: cli`), local opencode (`Authorization: Bearer subspaces-local`), or a token from `GET /api/session` (`x-subspaces-token` or the `subspaces_session` cookie). Browser origins are limited to subspaces.si, www.subspaces.si, subspaces.vercel.app, and localhost. Each IP is capped, and each completion is capped at 2048 output tokens and 48 KB.
 
 ## Product goals
 
@@ -137,17 +139,14 @@ Copy `.env.example`. Never commit values.
 
 | Variable | Role |
 | --- | --- |
-| `MOCK_LLM` | `1` serves the canned OpenAI-compatible provider (tool calls included). Default on when `LLM_API_KEY` is empty. |
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | Primary Flash endpoint. Default model id `glm-5.3-flash`. |
-| `LLM_FALLBACK_BASE_URL`, `LLM_FALLBACK_API_KEY`, `LLM_FALLBACK_MODEL` | Used when the primary request fails. Default fallback id `deepseek-v4.1-flash`. |
-| `GRAVITY_API_KEY` | Server-only Gravity key. Leave empty in git. |
-| `GRAVITY_PIXEL_ID` | Browser pixel id. Leave empty in git. |
-| `GRAVITY_PRODUCTION` | `0` (default) is Gravity test mode. `1` is live. |
-| `MOCK_ADS` | `1` fills an empty slot with the demo card. Leave unset or `0` when a Gravity key is set. |
+| `LLM_API_KEY` | Primary model key. Unset keeps the canned provider. |
+| `LLM_FALLBACK_API_KEY` | Optional. Defaults to `LLM_API_KEY` for the DeepSeek fallback. |
+| `GRAVITY_API_KEY` | Server-only Gravity key. Unset keeps the local ad card. |
+| `GRAVITY_PRODUCTION` | Optional. Unset is Gravity test mode. `1` is live. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | OAuth stub. The callback does not exchange a code. |
 | `SUBSPACES_LANDING_PORT` | Marketing page. Default `41825`. |
 
-`pnpm dev` reads `.env` without overriding variables already exported. It turns mock LLM on when `LLM_API_KEY` is empty, and turns mock ads on only when no Gravity key is set.
+Model hosts and ids (`glm-5.3-flash`, `deepseek-v4.1-flash`) are constants in `apps/backend/src/config.ts`. `pnpm dev` reads `.env` without overriding variables already exported. A key in that file turns the live model on.
 
 ## Layout
 

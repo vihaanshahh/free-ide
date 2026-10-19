@@ -57,6 +57,25 @@ export function gravityContext(id: string): ChatRequest["gravity_context"] {
   };
 }
 
+let sessionToken: Promise<string> | null = null;
+
+function webSession(): Promise<string> {
+  if (!sessionToken) {
+    sessionToken = fetch("/api/session")
+      .then(async (response) => {
+        if (!response.ok) throw new Error("session");
+        const body = (await response.json()) as { token?: string };
+        if (!body.token) throw new Error("session");
+        return body.token;
+      })
+      .catch((error: unknown) => {
+        sessionToken = null;
+        throw error;
+      });
+  }
+  return sessionToken;
+}
+
 export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConfig) => void) {
   const vscode = window.__SUBSPACES_VSCODE__;
   if (vscode) {
@@ -84,9 +103,13 @@ export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConf
 
   return {
     async send(payload: ChatRequest) {
+      const token = await webSession().catch(() => "");
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { "x-subspaces-token": token } : {}),
+        },
         body: JSON.stringify(payload),
       });
       if (!response.ok) {

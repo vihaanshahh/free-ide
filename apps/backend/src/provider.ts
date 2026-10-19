@@ -2,17 +2,24 @@ import fs from "node:fs";
 import path from "node:path";
 import { estimateTokens } from "./ledger.ts";
 import { ledger } from "./runtime.ts";
+import { FALLBACK_MODEL, LLM_BASE_URL, LLM_FALLBACK_BASE_URL, MAX_OUTPUT_TOKENS, PRIMARY_MODEL } from "./config.ts";
 import { mockLlmEnabled, repoRoot } from "./env.ts";
 
-export const PRIMARY_MODEL = "glm-5.3-flash";
-export const FALLBACK_MODEL = "deepseek-v4.1-flash";
+export { FALLBACK_MODEL, PRIMARY_MODEL };
 
 export interface ChatCompletionBody {
   model?: string;
   messages?: Array<Record<string, unknown>>;
   stream?: boolean;
   tools?: unknown[];
+  max_tokens?: number;
   stream_options?: { include_usage?: boolean };
+}
+
+export function cappedMaxTokens(value: unknown): number {
+  const parsed = typeof value === "number" && Number.isFinite(value) ? Math.floor(value) : MAX_OUTPUT_TOKENS;
+  if (parsed < 1) return 1;
+  return Math.min(parsed, MAX_OUTPUT_TOKENS);
 }
 
 export type Completion =
@@ -321,16 +328,14 @@ export interface UpstreamTarget {
 }
 
 export function upstreamTargets(): UpstreamTarget[] {
-  const primaryBase = process.env.LLM_BASE_URL?.replace(/\/$/, "") || "";
-  const primaryKey = process.env.LLM_API_KEY || "";
-  const primaryModel = process.env.LLM_MODEL || PRIMARY_MODEL;
-  const fallbackBase = (process.env.LLM_FALLBACK_BASE_URL || process.env.LLM_BASE_URL || "").replace(/\/$/, "");
-  const fallbackKey = process.env.LLM_FALLBACK_API_KEY || primaryKey;
-  const fallbackModel = process.env.LLM_FALLBACK_MODEL || FALLBACK_MODEL;
+  const primaryKey = process.env.LLM_API_KEY?.trim() || "";
+  const fallbackKey = process.env.LLM_FALLBACK_API_KEY?.trim() || primaryKey;
+  const primaryBase = LLM_BASE_URL.replace(/\/$/, "");
+  const fallbackBase = LLM_FALLBACK_BASE_URL.replace(/\/$/, "");
   const targets: UpstreamTarget[] = [];
-  if (primaryBase && primaryKey) targets.push({ base: primaryBase, key: primaryKey, model: primaryModel });
-  if (fallbackBase && fallbackKey && (fallbackModel !== primaryModel || fallbackBase !== primaryBase)) {
-    targets.push({ base: fallbackBase, key: fallbackKey, model: fallbackModel });
+  if (primaryKey) targets.push({ base: primaryBase, key: primaryKey, model: PRIMARY_MODEL });
+  if (fallbackKey && (FALLBACK_MODEL !== PRIMARY_MODEL || fallbackBase !== primaryBase)) {
+    targets.push({ base: fallbackBase, key: fallbackKey, model: FALLBACK_MODEL });
   }
   return targets;
 }
@@ -339,10 +344,11 @@ export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typ
   const targets = upstreamTargets();
   if (targets.length === 0) {
     return Response.json(
-      { error: { message: "Set LLM_BASE_URL and LLM_API_KEY, or run with MOCK_LLM=1." } },
+      { error: { message: "Set LLM_API_KEY, or leave it unset for the canned demo." } },
       { status: 502 },
     );
   }
+  const limited = { ...body, max_tokens: cappedMaxTokens(body.max_tokens) };
   let lastDetail = "The model proxy failed.";
   for (const target of targets) {
     try {
@@ -352,7 +358,7 @@ export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typ
           authorization: `Bearer ${target.key}`,
           "content-type": "application/json",
         },
-        body: JSON.stringify({ ...body, model: target.model }),
+        body: JSON.stringify({ ...limited, model: target.model }),
       });
       if (response.ok && response.body) {
         const prompt = estimateTokens(JSON.stringify(body.messages ?? []));
@@ -362,7 +368,11 @@ export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typ
         });
         return new Response(forClient, {
           status: response.status,
-          headers: { "content-type": response.headers.get("content-type") || "text/event-stream" },
+          headers: {
+            "content-type": response.headers.get("content-type") || "text/event-stream",
+            "cache-control": "no-cache, no-transform",
+            "x-accel-buffering": "no",
+          },
         });
       }
       lastDetail = `Model request failed (${response.status}).`;
@@ -419,7 +429,7 @@ export async function handleChatCompletions(body: ChatCompletionBody): Promise<R
 }
 
 export function handleModels(): Response {
-  const ids = [process.env.LLM_MODEL || PRIMARY_MODEL, process.env.LLM_FALLBACK_MODEL || FALLBACK_MODEL];
+  const ids = [PRIMARY_MODEL, FALLBACK_MODEL];
   return Response.json({
     object: "list",
     data: [...new Set(ids)].map((id) => ({ id, object: "model", owned_by: "subspaces" })),

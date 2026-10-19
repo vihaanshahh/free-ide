@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { LLM_BASE_URL, LLM_FALLBACK_BASE_URL } from "./config.ts";
 import { decideCompletion, forwardCompletion, toolTraces, upstreamTargets, type ChatCompletionBody } from "./provider.ts";
 
 const SOURCE = `export async function listInvoices(query: InvoiceQuery = {}) {
@@ -90,26 +91,21 @@ test("tool traces pair calls with results", () => {
 
 test("upstream fallback is attempted after the primary model fails", async () => {
   const previous = {
-    LLM_BASE_URL: process.env.LLM_BASE_URL,
     LLM_API_KEY: process.env.LLM_API_KEY,
-    LLM_MODEL: process.env.LLM_MODEL,
-    LLM_FALLBACK_BASE_URL: process.env.LLM_FALLBACK_BASE_URL,
     LLM_FALLBACK_API_KEY: process.env.LLM_FALLBACK_API_KEY,
-    LLM_FALLBACK_MODEL: process.env.LLM_FALLBACK_MODEL,
-    MOCK_LLM: process.env.MOCK_LLM,
   };
-  process.env.LLM_BASE_URL = "http://primary.invalid/v1";
   process.env.LLM_API_KEY = "primary-test";
-  process.env.LLM_MODEL = "glm-5.3-flash";
-  process.env.LLM_FALLBACK_BASE_URL = "http://fallback.invalid/v1";
-  process.env.LLM_FALLBACK_API_KEY = "fallback-test";
-  process.env.LLM_FALLBACK_MODEL = "deepseek-v4.1-flash";
+  delete process.env.LLM_FALLBACK_API_KEY;
   const seen: string[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = String(input);
     seen.push(url);
-    const payload = JSON.parse(String(init?.body)) as { model?: string };
-    if (url.includes("primary")) return new Response("nope", { status: 503 });
+    const payload = JSON.parse(String(init?.body)) as { model?: string; max_tokens?: number };
+    assert.equal(payload.max_tokens, 2048);
+    if (url.startsWith(LLM_BASE_URL)) {
+      assert.equal(payload.model, "glm-5.3-flash");
+      return new Response("nope", { status: 503 });
+    }
     assert.equal(payload.model, "deepseek-v4.1-flash");
     const stream = new ReadableStream({
       start(controller) {
@@ -121,9 +117,12 @@ test("upstream fallback is attempted after the primary model fails", async () =>
   };
   try {
     assert.equal(upstreamTargets().length, 2);
-    const response = await forwardCompletion({ model: "glm-5.3-flash", messages: [{ role: "user", content: "hi" }], stream: true }, fetchImpl);
+    const response = await forwardCompletion(
+      { model: "glm-5.3-flash", messages: [{ role: "user", content: "hi" }], stream: true, max_tokens: 99999 },
+      fetchImpl,
+    );
     assert.equal(response.status, 200);
-    assert.deepEqual(seen, ["http://primary.invalid/v1/chat/completions", "http://fallback.invalid/v1/chat/completions"]);
+    assert.deepEqual(seen, [`${LLM_BASE_URL}/chat/completions`, `${LLM_FALLBACK_BASE_URL}/chat/completions`]);
     assert.match(await response.text(), /ok/);
   } finally {
     for (const [key, value] of Object.entries(previous)) {

@@ -150,7 +150,7 @@ async function sendSidebar(webview) {
 async function streamChat(webview, payload, signal) {
   const response = await fetch(`${API_ORIGIN}/api/chat`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-subspaces-client": "desktop" },
     body: JSON.stringify(payload),
     signal,
   });
