@@ -10,6 +10,26 @@ test("health reports the harness off when opencode is not attached", async () =>
   assert.equal(body.harness, "off");
 });
 
+test("GET /api/ads returns the below-response card", async () => {
+  const previous = { MOCK_ADS: process.env.MOCK_ADS, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
+  process.env.MOCK_ADS = "1";
+  delete process.env.GRAVITY_API_KEY;
+  try {
+    const response = await app.request("/api/ads");
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { ad: { source?: string; placement?: string; title?: string; url?: string } };
+    assert.equal(body.ad.source, "mock");
+    assert.equal(body.ad.placement, "below_response");
+    assert.match(body.ad.title ?? "", /pull request/i);
+    assert.equal(typeof body.ad.url, "string");
+  } finally {
+    if (previous.MOCK_ADS === undefined) delete process.env.MOCK_ADS;
+    else process.env.MOCK_ADS = previous.MOCK_ADS;
+    if (previous.GRAVITY_API_KEY === undefined) delete process.env.GRAVITY_API_KEY;
+    else process.env.GRAVITY_API_KEY = previous.GRAVITY_API_KEY;
+  }
+});
+
 test("v1 models stay on the backend path", async () => {
   const response = await app.request("/v1/models");
   assert.equal(response.status, 200);

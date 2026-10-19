@@ -27,6 +27,7 @@ Pinned tag **v1.18.27** (MIT, Copyright (c) 2025 opencode).
 - Runtime: `scripts/setup-opencode.mjs` downloads the host build for that tag into `vendor/opencode-runtime/` (gitignored). Linux x64 is a `.tar.gz`. macOS arm64 and x64 are `.zip`. Asset names live in `scripts/targets.mjs`. Do not commit the binary.
 - Upkeep: check out the new tag in `vendor/opencode`, set `OPENCODE_VERSION` in `scripts/targets.mjs` and `apps/backend/src/harness.ts` to the same tag, then re-run `pnpm setup`.
 - The server is `opencode serve` on port 41826. Its provider `subspaces` uses `@ai-sdk/openai-compatible` with `baseURL` pointed at this repo's `/v1` proxy. Model calls do not go to OpenCode Zen.
+- `apps/cli` launches that same binary (`opencode` and `opencode run`). It writes a generated config and does not fork the submodule.
 
 ## Not done yet
 

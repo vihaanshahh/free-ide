@@ -10,7 +10,8 @@
     "setup": "node scripts/setup-code-server.mjs && node scripts/setup-opencode.mjs",
     "build": "pnpm --filter @subspaces/chat-ui build && pnpm --filter @subspaces/landing build",
     "dev": "node scripts/dev.mjs",
-    "test": "pnpm --filter @subspaces/backend test && node --experimental-strip-types --test apps/landing/src/starfield.test.ts apps/landing/src/links.test.ts scripts/publish-public-release.test.mjs",
+    "subspaces": "node --disable-warning=ExperimentalWarning --experimental-strip-types apps/cli/src/cli.ts",
+    "test": "pnpm --filter @subspaces/backend test && pnpm --filter @subspaces/cli test && node --disable-warning=ExperimentalWarning --experimental-strip-types --test apps/landing/src/starfield.test.ts apps/landing/src/links.test.ts scripts/publish-public-release.test.mjs",
     "package": "node scripts/package-ide.mjs",
     "screenshot": "node scripts/screenshot.mjs"
   },

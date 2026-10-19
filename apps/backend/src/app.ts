@@ -108,6 +108,17 @@ app.post("/api/chat/cancel", async (c) => {
   return c.json({ ok: true });
 });
 
+app.get("/api/ads", async (c) => {
+  const headerBag = headerRecord(c.req.raw.headers);
+  const prompt = (c.req.query("q") || "Developer tools for pull requests and API logs.").slice(0, 500);
+  const { below } = await fetchPlacements({
+    messages: [{ role: "user", content: prompt }],
+    gravityContext: contextFrom(headerBag["user-agent"]),
+    headers: headerBag,
+  });
+  return c.json({ ad: below });
+});
+
 app.get("/api/ads/sidebar", async (c) => {
   const headerBag = headerRecord(c.req.raw.headers);
   const { sidebar } = await fetchPlacements({

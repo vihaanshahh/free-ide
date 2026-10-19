@@ -27,6 +27,22 @@ Gravity test mode is the default (`GRAVITY_PRODUCTION` unset or `0`). Put `GRAVI
 pnpm test
 ```
 
+## CLI
+
+`apps/cli` is a thin wrapper around the pinned OpenCode binary (v1.18.27, MIT). It does not patch `vendor/opencode`. `subspaces` writes an OpenCode config that points the `subspaces` provider at `SUBSPACES_API` (default `https://subspaces.vercel.app/v1`) and registers GLM-5.3-Flash plus DeepSeek V4.1 Flash.
+
+```bash
+pnpm subspaces
+pnpm subspaces run "add pagination to listInvoices"
+pnpm subspaces balance
+pnpm subspaces watch-ad
+pnpm subspaces login
+```
+
+`SUBSPACES_MOCK=1`, or an API the process cannot reach, prints a canned reply so a demo still runs without the binary. `run` prints a sponsored card under the reply. The card is loaded from `/api/ads` when that route responds, and otherwise uses the local Quillfern mock (the same copy as an empty Gravity slot). `watch-ad` shows that card, counts down, and adds 15k tokens on this machine. `login` is a stub and does not store a token.
+
+Interactive `subspaces` launches the OpenCode TUI with `OPENCODE_CONFIG` set. Download the binary first with `pnpm setup`. Mock mode stays in this process.
+
 ## Download a release
 
 A `v*` tag attaches the three archives to a Release on this private repo (see `.github/workflows/release.yml`). Those files are large. They are also copied to a **separate public repository**, `vihaanshahh/subspaces-releases`, so visitors download them from GitHub. Public GitHub Release bandwidth is free and does not meter egress.
@@ -141,6 +157,7 @@ Copy `.env.example`. Never commit values.
 - `apps/extension` — auxiliary-bar chat and an explorer sponsored view, loaded by code-server
 - `packages/chat-ui` — React panel, harness pills, Gravity card (official component when the network fills, mock card otherwise)
 - `packages/brand` — cream mark, Satoshi files, theme tokens
+- `apps/cli` — `subspaces` terminal wrapper around the pinned opencode binary
 - `examples/tallyhouse-api` — folder the shell opens
 
 ## Screenshot
