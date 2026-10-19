@@ -37,4 +37,4 @@ Pinned tag **v1.18.27** (MIT, Copyright (c) 2025 opencode).
 - GitHub OAuth token exchange and a persisted account record
 - A durable token ledger. Caps are in-memory per session: 15M soft cap slows replies, 20M hard cap refuses, plus 10/minute and 60/hour
 - A sold sponsored theme. The status bar shows `theme: subspaces Dark` as the empty slot
-- Gravity production mode. Test mode is the default. `GRAVITY_API_KEY` and `GRAVITY_PIXEL_ID` stay in the environment
+- Gravity production mode. Test mode is the default unless `GRAVITY_PRODUCTION=1`. `GRAVITY_API_KEY` stays in the environment. The pixel id is a public constant in `apps/backend/src/config.ts`

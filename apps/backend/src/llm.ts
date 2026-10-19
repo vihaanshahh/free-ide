@@ -1,4 +1,9 @@
+import { MAX_OUTPUT_TOKENS } from "./config.ts";
+import { upstreamTargets } from "./provider.ts";
 import type { ChatMessage, HarnessId } from "./types.ts";
+
+export const DIRECT_CHAT_PROMPT =
+  "You are the subspaces.si coding assistant. Help the user write, read, and explain code. Be concise and concrete. You have no tools in this chat, so propose edits instead of claiming you changed a file. Do not mention other editor brands.";
 
 const PAGINATION_REPLY = `Cursor pagination on GET /invoices. Default 20, clamp the limit at 100, and return nextCursor only when another row exists.
 
@@ -54,37 +59,50 @@ export async function* streamMock(
 export async function* streamFlash(
   messages: ChatMessage[],
   slowed: boolean,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncGenerator<string> {
-  const base = process.env.LLM_BASE_URL?.replace(/\/$/, "");
-  const key = process.env.LLM_API_KEY;
-  const model = process.env.LLM_MODEL || "glm-5.3-flash";
-  if (!base || !key) {
-    throw new Error("Set LLM_BASE_URL and LLM_API_KEY, or run with MOCK_LLM=1.");
+  const targets = upstreamTargets();
+  if (!targets.length) {
+    throw new Error("Set LLM_API_KEY, or leave it unset for the canned demo.");
   }
-
-  const response = await fetch(`${base}/chat/completions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${key}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: true,
-    }),
-  });
-
-  if (!response.ok || !response.body) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Model request failed (${response.status}). ${detail.slice(0, 180)}`);
+  let last = "The model proxy failed.";
+  for (const target of targets) {
+    let opened = false;
+    try {
+      const response = await fetchImpl(`${target.base}/chat/completions`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${target.key}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: target.model,
+          messages,
+          stream: true,
+          max_tokens: MAX_OUTPUT_TOKENS,
+        }),
+      });
+      if (!response.ok || !response.body) {
+        const detail = await response.text().catch(() => "");
+        last = `Model request failed (${response.status}). ${detail.slice(0, 180)}`;
+        continue;
+      }
+      opened = true;
+      yield* readModelStream(response.body, slowed);
+      return;
+    } catch (error) {
+      if (opened) throw error;
+      last = error instanceof Error ? error.message : last;
+    }
   }
+  throw new Error(last);
+}
 
-  const reader = response.body.getReader();
+async function* readModelStream(body: ReadableStream<Uint8Array>, slowed: boolean): AsyncGenerator<string> {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   const gap = slowed ? 40 : 0;
-
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;

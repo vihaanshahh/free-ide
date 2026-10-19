@@ -2,13 +2,26 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { fetchPlacements } from "./ads.ts";
+import { FALLBACK_MODEL, GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES } from "./config.ts";
 import { mockLlmEnabled } from "./env.ts";
+import {
+  allowModelRequest,
+  allowSessionMint,
+  clientAuthorized,
+  clientIp,
+  corsOrigin,
+  issueSessionToken,
+  originAllowed,
+} from "./guard.ts";
 import type { OpenCodeHarness } from "./harness.ts";
 import { estimateTokens } from "./ledger.ts";
-import { streamFlash, streamMock } from "./llm.ts";
+import { DIRECT_CHAT_PROMPT, streamFlash, streamMock } from "./llm.ts";
 import { handleChatCompletions, handleModels, withProviderSession, type ChatCompletionBody } from "./provider.ts";
 import { ledger } from "./runtime.ts";
 import type { ChatMessage, GravityContext, HarnessId } from "./types.ts";
+
+/** Hobby plan ceiling. Streaming should finish inside this window. */
+export const maxDuration = 60;
 
 let harness: OpenCodeHarness | null = null;
 
@@ -26,16 +39,15 @@ export default app;
 app.use(
   "*",
   cors({
-    origin: "*",
+    origin: (origin) => corsOrigin(origin) || "",
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["content-type", "authorization", "x-subspaces-session"],
+    allowHeaders: ["content-type", "authorization", "x-subspaces-session", "x-subspaces-client", "x-subspaces-token"],
   }),
 );
 
 app.get("/api/health", (c) => c.json({ ok: true, product: "subspaces.si", harness: harness ? "opencode" : "off" }));
 
 app.get("/api/config", (c) => {
-  const pixelId = process.env.GRAVITY_PIXEL_ID || null;
   return c.json({
     product: "subspaces.si",
     mockLlm: mockLlmEnabled(),
@@ -43,17 +55,38 @@ app.get("/api/config", (c) => {
     opencodeVersion: harness?.version ?? null,
     gravity: Boolean(process.env.GRAVITY_API_KEY),
     gravityProduction: process.env.GRAVITY_PRODUCTION === "1",
-    pixelId,
-    modelLabel: process.env.LLM_MODEL_LABEL || "GLM-5.3-Flash",
-    fallbackModel: process.env.LLM_FALLBACK_MODEL || "deepseek-v4.1-flash",
+    pixelId: GRAVITY_PIXEL_ID,
+    modelLabel: "GLM-5.3-Flash",
+    fallbackModel: FALLBACK_MODEL,
     softCap: 15_000_000,
   });
+});
+
+app.get("/api/session", (c) => {
+  const ip = clientIp(c.req.raw.headers);
+  if (!allowSessionMint(ip)) return c.json({ error: "too many requests" }, 429);
+  const token = issueSessionToken();
+  const secure = c.req.header("x-forwarded-proto") === "https" || c.req.url.startsWith("https:");
+  c.header(
+    "set-cookie",
+    `subspaces_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200${secure ? "; Secure" : ""}`,
+  );
+  return c.json({ token });
 });
 
 app.get("/v1/models", () => handleModels());
 
 app.post("/v1/chat/completions", async (c) => {
-  const body = (await c.req.json().catch(() => null)) as ChatCompletionBody | null;
+  const blocked = gate(c.req.raw.headers, contentLength(c.req.raw.headers));
+  if (blocked) return c.json({ error: { message: blocked.message } }, blocked.status);
+  const raw = await c.req.text();
+  if (raw.length > MAX_REQUEST_BYTES) return c.json({ error: { message: "request is too large" } }, 413);
+  let body: ChatCompletionBody | null = null;
+  try {
+    body = JSON.parse(raw || "null") as ChatCompletionBody | null;
+  } catch {
+    body = null;
+  }
   if (!body || !Array.isArray(body.messages)) return c.json({ error: { message: "messages is required" } }, 400);
   const headerSession = c.req.header("x-subspaces-session");
   if (headerSession) {
@@ -119,12 +152,11 @@ app.get("/api/ads/sidebar", async (c) => {
 });
 
 app.post("/api/chat", async (c) => {
-  const body = (await c.req.json().catch(() => null)) as {
-    messages?: ChatMessage[];
-    harness?: string;
-    sessionId?: string;
-    gravity_context?: GravityContext;
-  } | null;
+  const blocked = gate(c.req.raw.headers, contentLength(c.req.raw.headers));
+  if (blocked) return c.json({ error: blocked.message }, blocked.status);
+  const raw = await c.req.text();
+  if (raw.length > MAX_REQUEST_BYTES) return c.json({ error: "request is too large" }, 413);
+  const body = parseChat(raw);
 
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     return c.json({ error: "messages is required" }, 400);
@@ -142,9 +174,9 @@ app.post("/api/chat", async (c) => {
   const active = harness;
   const ranHarness: HarnessId = harnessId === "opencode" && active ? "opencode" : "stub";
   const sessionId = sessionOf(body.sessionId);
-  const gate = ledger.consumeRequest(sessionId);
-  if (!gate.ok) {
-    return c.json({ error: gate.reason, retryAfterSec: gate.retryAfterSec }, 429);
+  const admission = ledger.consumeRequest(sessionId);
+  if (!admission.ok) {
+    return c.json({ error: admission.reason, retryAfterSec: admission.retryAfterSec }, 429);
   }
 
   const before = ledger.snapshot(sessionId);
@@ -159,6 +191,8 @@ app.post("/api/chat", async (c) => {
     headers: headerBag,
   });
 
+  c.header("cache-control", "no-cache, no-transform");
+  c.header("x-accel-buffering", "no");
   return streamSSE(c, async (stream) => {
     let reply = "";
     try {
@@ -191,8 +225,15 @@ app.post("/api/chat", async (c) => {
           reply += block;
           await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: block }) });
         }
+      } else if (mock) {
+        const chunks = streamMock(userText, ranHarness, before.slowed);
+        for await (const chunk of chunks) {
+          reply += chunk;
+          await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: chunk }) });
+        }
+        ledger.record(sessionId, promptTokens, estimateTokens(reply));
       } else {
-        const chunks = mock ? streamMock(userText, ranHarness, before.slowed) : streamFlash(systemMessages(messages, ranHarness), before.slowed);
+        const chunks = streamFlash(directMessages(messages), before.slowed);
         for await (const chunk of chunks) {
           reply += chunk;
           await stream.writeSSE({ data: JSON.stringify({ type: "chunk", content: chunk }) });
@@ -212,18 +253,46 @@ app.post("/api/chat", async (c) => {
         ad: ads.below,
         usage,
         harness: ranHarness,
-        mockLlm: ranHarness === "stub" ? true : mock,
+        mockLlm: mock,
       }),
     });
   });
 });
 
-function systemMessages(messages: ChatMessage[], harnessId: HarnessId): ChatMessage[] {
-  const prompt =
-    harnessId === "opencode"
-      ? "You are the subspaces.si coding assistant. Be concise. Do not mention other editor brands."
-      : "You are a stub harness with no tools. Say that plainly, then stop.";
-  return [{ role: "system", content: prompt }, ...messages];
+function directMessages(messages: ChatMessage[]): ChatMessage[] {
+  const dialogue = messages.filter((message) => message.role !== "system");
+  return [{ role: "system", content: DIRECT_CHAT_PROMPT }, ...dialogue];
+}
+
+function parseChat(raw: string): {
+  messages?: ChatMessage[];
+  harness?: string;
+  sessionId?: string;
+  gravity_context?: GravityContext;
+} | null {
+  try {
+    return JSON.parse(raw) as {
+      messages?: ChatMessage[];
+      harness?: string;
+      sessionId?: string;
+      gravity_context?: GravityContext;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function contentLength(headers: Headers): number {
+  const value = Number(headers.get("content-length") || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function gate(headers: Headers, claimedLength: number): { status: 401 | 403 | 413 | 429; message: string } | null {
+  if (claimedLength > MAX_REQUEST_BYTES) return { status: 413, message: "request is too large" };
+  if (!originAllowed(headers.get("origin") ?? undefined)) return { status: 403, message: "origin is not allowed" };
+  if (!clientAuthorized(headers)) return { status: 401, message: "missing client session" };
+  if (!allowModelRequest(clientIp(headers))) return { status: 429, message: "too many requests" };
+  return null;
 }
 
 function sessionOf(value: unknown): string {

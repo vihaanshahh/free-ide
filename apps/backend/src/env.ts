@@ -35,13 +35,8 @@ export function loadEnvFile(file = path.join(repoRoot(), ".env")): void {
   }
 }
 
-export function flag(name: string, fallback: boolean): boolean {
-  const value = process.env[name];
-  if (value === undefined || value === "") return fallback;
-  return value === "1" || value.toLowerCase() === "true";
-}
-
+/** Canned replies only when no provider key is configured. */
 export function mockLlmEnabled(): boolean {
-  return flag("MOCK_LLM", !process.env.LLM_API_KEY);
+  return !process.env.LLM_API_KEY?.trim();
 }
 

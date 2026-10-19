@@ -3,6 +3,7 @@ import { app, attachHarness } from "./app.ts";
 import { loadEnvFile, mockLlmEnabled } from "./env.ts";
 import { defaultHarness } from "./harness.ts";
 
+export { maxDuration } from "./app.ts";
 export default app;
 
 // Vercel imports this module as a function. The opencode child and the

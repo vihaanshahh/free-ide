@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { repoRoot } from "./env.ts";
-import { PRIMARY_MODEL } from "./provider.ts";
+import { FALLBACK_MODEL, PRIMARY_MODEL } from "./provider.ts";
 
 export const OPENCODE_VERSION = "1.18.27";
 
@@ -279,7 +279,7 @@ export class OpenCodeHarness {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        model: { providerID: "subspaces", modelID: process.env.LLM_MODEL || PRIMARY_MODEL },
+        model: { providerID: "subspaces", modelID: PRIMARY_MODEL },
         parts: [{ type: "text", text: input.text }],
       }),
       signal: input.signal,
@@ -408,8 +408,8 @@ function providerBaseUrl(): string {
 }
 
 function writeConfig(file: string): void {
-  const model = process.env.LLM_MODEL || PRIMARY_MODEL;
-  const fallback = process.env.LLM_FALLBACK_MODEL || "deepseek-v4.1-flash";
+  const model = PRIMARY_MODEL;
+  const fallback = FALLBACK_MODEL;
   const body = {
     $schema: "https://opencode.ai/config.json",
     model: `subspaces/${model}`,
