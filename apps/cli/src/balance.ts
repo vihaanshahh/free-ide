@@ -37,6 +37,7 @@ export function charge(balance: Balance, tokens: number): Balance {
   return { ...balance, tokensLeft: Math.max(0, balance.tokensLeft - spent) };
 }
 
+/** Local demo balance only. The hosted API ignores this file and any client-sent credit. */
 export function unlock(balance: Balance, tokens = AD_REWARD_TOKENS): Balance {
   const gained = Math.max(0, Math.floor(tokens));
   return {

@@ -1,5 +1,5 @@
 import { MAX_OUTPUT_TOKENS } from "./config.ts";
-import { upstreamTargets } from "./provider.ts";
+import { upstreamHeaders, upstreamTargets } from "./provider.ts";
 import type { ChatMessage, HarnessId } from "./types.ts";
 
 export const DIRECT_CHAT_PROMPT =
@@ -71,10 +71,7 @@ export async function* streamFlash(
     try {
       const response = await fetchImpl(`${target.base}/chat/completions`, {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${target.key}`,
-          "content-type": "application/json",
-        },
+        headers: upstreamHeaders(target.key),
         body: JSON.stringify({
           model: target.model,
           messages,
@@ -83,16 +80,16 @@ export async function* streamFlash(
         }),
       });
       if (!response.ok || !response.body) {
-        const detail = await response.text().catch(() => "");
-        last = `Model request failed (${response.status}). ${detail.slice(0, 180)}`;
+        await response.body?.cancel().catch(() => undefined);
+        last = "The model proxy failed.";
         continue;
       }
       opened = true;
       yield* readModelStream(response.body, slowed);
       return;
-    } catch (error) {
-      if (opened) throw error;
-      last = error instanceof Error ? error.message : last;
+    } catch {
+      if (opened) throw new Error("The model proxy failed.");
+      last = "The model proxy failed.";
     }
   }
   throw new Error(last);

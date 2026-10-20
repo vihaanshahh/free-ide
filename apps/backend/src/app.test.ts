@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setRewardProofForTests } from "./ads.ts";
 import { app } from "./app.ts";
-import { GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES } from "./config.ts";
-import { resetLimitsForTests } from "./guard.ts";
+import { AD_REWARD_TOKENS, GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES } from "./config.ts";
+import { issueSessionToken, resetLimitsForTests } from "./guard.ts";
 
 function clientHeaders(ip: string, extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -92,7 +93,8 @@ test("config publishes the hardcoded pixel and reports mock from the key", async
     const body = (await response.json()) as { pixelId: string; mockLlm: boolean; fallbackModel: string };
     assert.equal(body.pixelId, GRAVITY_PIXEL_ID);
     assert.equal(body.mockLlm, true);
-    assert.equal(body.fallbackModel, "deepseek-v4.1-flash");
+    assert.equal(body.fallbackModel, "deepseek/deepseek-v4.1-flash");
+    assert.equal(JSON.stringify(body).includes("LLM_API_KEY"), false);
   } finally {
     if (previous === undefined) delete process.env.LLM_API_KEY;
     else process.env.LLM_API_KEY = previous;
@@ -119,7 +121,10 @@ test("direct chat uses the primary model and falls back when opencode is absent"
     };
     const system = payload.messages?.find((message) => message.role === "system")?.content;
     seen.push({ url, model: payload.model, system });
-    if (url.includes("api.z.ai")) return new Response("primary down", { status: 503 });
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get("http-referer"), "https://www.subspaces.si");
+    assert.equal(headers.get("x-title"), "subspaces.si");
+    if (payload.model === "z-ai/glm-5.3-flash") return new Response("primary down", { status: 503 });
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"real reply"}}]}\n\n'));
@@ -148,10 +153,11 @@ test("direct chat uses the primary model and falls back when opencode is absent"
     assert.match(text, /"mockLlm":false/);
     assert.equal(text.includes("stub harness with no tools"), false);
     assert.equal(seen.length, 2);
-    assert.match(seen[0]?.url ?? "", /api\.z\.ai/);
-    assert.equal(seen[0]?.model, "glm-5.3-flash");
-    assert.match(seen[1]?.url ?? "", /api\.deepseek\.com/);
-    assert.equal(seen[1]?.model, "deepseek-v4.1-flash");
+    assert.match(seen[0]?.url ?? "", /openrouter\.ai\/api\/v1\/chat\/completions/);
+    assert.equal(seen[0]?.model, "z-ai/glm-5.3-flash");
+    assert.match(seen[1]?.url ?? "", /openrouter\.ai\/api\/v1\/chat\/completions/);
+    assert.equal(seen[1]?.model, "deepseek/deepseek-v4.1-flash");
+    assert.equal(text.includes("primary-test"), false);
     assert.match(seen[0]?.system ?? "", /subspaces\.si coding assistant/);
     assert.equal((seen[0]?.system ?? "").includes("stub harness"), false);
   } finally {
@@ -248,6 +254,186 @@ test("a session token from the app authorizes web chat", async () => {
     assert.equal(chat.status, 200);
     assert.match(await chat.text(), /"mockLlm":true/);
   } finally {
+    restoreEnv(previous);
+  }
+});
+
+test("hosted model calls reject a missing session, header-only clients, and an empty balance", async () => {
+  resetLimitsForTests();
+  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
+  process.env.LLM_API_KEY = "sk-or-test-secret-value";
+  process.env.VERCEL = "1";
+  delete process.env.GRAVITY_API_KEY;
+  let called = false;
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response("should not run", { status: 500 });
+  };
+  try {
+    const body = JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-bypass" });
+    const noSession = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.40" },
+      body,
+    });
+    assert.equal(noSession.status, 401);
+
+    const headerOnly = await app.request("/api/chat", {
+      method: "POST",
+      headers: clientHeaders("203.0.113.41", { "x-subspaces-client": "cli" }),
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-cli" }),
+    });
+    assert.equal(headerOnly.status, 401);
+
+    const localBearer = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer subspaces-local",
+        "x-forwarded-for": "203.0.113.42",
+      },
+      body,
+    });
+    assert.equal(localBearer.status, 401);
+
+    const empty = issueSessionToken(Date.now(), { bal: 0 });
+    const noBalance = await app.request("/api/chat", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": empty,
+        "x-forwarded-for": "203.0.113.43",
+      },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-empty" }),
+    });
+    assert.equal(noBalance.status, 402);
+
+    const short = issueSessionToken(Date.now(), { bal: 100 });
+    const exceeded = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": short,
+        "x-forwarded-for": "203.0.113.44",
+      },
+      body,
+    });
+    assert.equal(exceeded.status, 402);
+    assert.equal(called, false);
+    assert.equal((await noBalance.text()).includes("sk-or-test-secret-value"), false);
+  } finally {
+    globalThis.fetch = original;
+    restoreEnv(previous);
+  }
+});
+
+test("a client-asserted credit does not grant hosted tokens", async () => {
+  resetLimitsForTests();
+  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
+  process.env.LLM_API_KEY = "sk-or-test-secret-value";
+  process.env.VERCEL = "1";
+  delete process.env.GRAVITY_API_KEY;
+  setRewardProofForTests(null);
+  const token = issueSessionToken(Date.now(), { bal: 0, sid: "reward-sid" });
+  try {
+    const forged = await app.request("/api/ads/reward", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": token,
+        "x-forwarded-for": "203.0.113.50",
+      },
+      body: JSON.stringify({ tokens: 15_000, credit: 15_000, unlocked: 15_000 }),
+    });
+    assert.equal(forged.status, 402);
+    const forgedBody = (await forged.json()) as { balance: number; error: string };
+    assert.equal(forgedBody.balance, 0);
+    assert.equal(JSON.stringify(forgedBody).includes("sk-or-test-secret-value"), false);
+
+    let impressions = 0;
+    setRewardProofForTests(async () => ({
+      ok: true,
+      impressionId: `imp-verified-${impressions += 1}`,
+      ad: null,
+    }));
+    const granted = await app.request("/api/ads/reward", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": token,
+        "x-forwarded-for": "203.0.113.51",
+      },
+      body: JSON.stringify({ tokens: 999_999 }),
+    });
+    assert.equal(granted.status, 200);
+    const grantedBody = (await granted.json()) as { balance: number; token: string };
+    assert.equal(grantedBody.balance, AD_REWARD_TOKENS);
+
+    const replay = await app.request("/api/ads/reward", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": token,
+        "x-forwarded-for": "203.0.113.52",
+      },
+      body: JSON.stringify({ tokens: 15_000 }),
+    });
+    assert.equal(replay.status, 401);
+  } finally {
+    setRewardProofForTests(null);
+    restoreEnv(previous);
+  }
+});
+
+test("hosted chat spends a server-signed balance and does not echo the provider key", async () => {
+  resetLimitsForTests();
+  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
+  process.env.LLM_API_KEY = "sk-or-test-secret-value";
+  process.env.VERCEL = "1";
+  delete process.env.GRAVITY_API_KEY;
+  const token = issueSessionToken(Date.now(), { bal: 20_000, sid: "spend-sid" });
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"funded"}}]}\n\n'));
+        controller.close();
+      },
+    });
+    return new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } });
+  };
+  try {
+    const response = await app.request("/api/chat", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": token,
+        "x-subspaces-client": "desktop",
+        "x-forwarded-for": "203.0.113.60",
+      },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hello" }], sessionId: "hosted-spend" }),
+    });
+    assert.equal(response.status, 200);
+    const text = await response.text();
+    assert.match(text, /funded/);
+    assert.match(text, /"mockLlm":false/);
+    assert.equal(text.includes("sk-or-test-secret-value"), false);
+    assert.equal(response.headers.get("x-subspaces-token")?.includes("sk-or-test-secret-value") ?? false, false);
+    const rotated = response.headers.get("x-subspaces-token") || "";
+    assert.notEqual(rotated, token);
+    const again = await app.request("/api/chat", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-subspaces-token": token,
+        "x-forwarded-for": "203.0.113.61",
+      },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hello again" }], sessionId: "hosted-replay" }),
+    });
+    assert.equal(again.status, 401);
+  } finally {
+    globalThis.fetch = original;
     restoreEnv(previous);
   }
 });

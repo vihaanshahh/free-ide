@@ -2,7 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { estimateTokens } from "./ledger.ts";
 import { ledger } from "./runtime.ts";
-import { FALLBACK_MODEL, LLM_BASE_URL, LLM_FALLBACK_BASE_URL, MAX_OUTPUT_TOKENS, PRIMARY_MODEL } from "./config.ts";
+import {
+  FALLBACK_MODEL,
+  LLM_BASE_URL,
+  LLM_FALLBACK_BASE_URL,
+  MAX_OUTPUT_TOKENS,
+  OPENROUTER_REFERER,
+  OPENROUTER_TITLE,
+  PRIMARY_MODEL,
+} from "./config.ts";
 import { mockLlmEnabled, repoRoot } from "./env.ts";
 
 export { FALLBACK_MODEL, PRIMARY_MODEL };
@@ -14,6 +22,15 @@ export interface ChatCompletionBody {
   tools?: unknown[];
   max_tokens?: number;
   stream_options?: { include_usage?: boolean };
+}
+
+export function upstreamHeaders(key: string): Record<string, string> {
+  return {
+    authorization: `Bearer ${key}`,
+    "content-type": "application/json",
+    "HTTP-Referer": OPENROUTER_REFERER,
+    "X-Title": OPENROUTER_TITLE,
+  };
 }
 
 export function cappedMaxTokens(value: unknown): number {
@@ -334,7 +351,8 @@ export function upstreamTargets(): UpstreamTarget[] {
   const fallbackBase = LLM_FALLBACK_BASE_URL.replace(/\/$/, "");
   const targets: UpstreamTarget[] = [];
   if (primaryKey) targets.push({ base: primaryBase, key: primaryKey, model: PRIMARY_MODEL });
-  if (fallbackKey && (FALLBACK_MODEL !== PRIMARY_MODEL || fallbackBase !== primaryBase)) {
+  const sameUpstream = (FALLBACK_MODEL as string) === PRIMARY_MODEL && fallbackBase === primaryBase;
+  if (fallbackKey && !sameUpstream) {
     targets.push({ base: fallbackBase, key: fallbackKey, model: FALLBACK_MODEL });
   }
   return targets;
@@ -354,10 +372,7 @@ export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typ
     try {
       const response = await fetchImpl(`${target.base}/chat/completions`, {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${target.key}`,
-          "content-type": "application/json",
-        },
+        headers: upstreamHeaders(target.key),
         body: JSON.stringify({ ...limited, model: target.model }),
       });
       if (response.ok && response.body) {

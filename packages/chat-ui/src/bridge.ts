@@ -112,6 +112,8 @@ export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConf
         },
         body: JSON.stringify(payload),
       });
+      const rotated = response.headers.get("x-subspaces-token");
+      if (rotated) sessionToken = Promise.resolve(rotated);
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
         onEvent({ type: "error", message: body?.error || "The subspaces proxy rejected the turn." });
@@ -131,7 +133,9 @@ export function connectChat(onEvent: EventHandler, onConfig: (config: PublicConf
         for (const frame of frames) {
           const line = frame.split("\n").find((item) => item.startsWith("data:"));
           if (!line) continue;
-          onEvent(JSON.parse(line.slice(5).trim()) as Record<string, unknown>);
+          const event = JSON.parse(line.slice(5).trim()) as Record<string, unknown>;
+          if (typeof event.token === "string" && event.token) sessionToken = Promise.resolve(event.token);
+          onEvent(event);
         }
       }
     },

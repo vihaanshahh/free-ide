@@ -4,7 +4,11 @@
     "backend": {
       "root": "apps/backend",
       "framework": "hono",
-      "installCommand": "pnpm install --frozen-lockfile --prod=false"
+      "installCommand": "pnpm install --frozen-lockfile --prod=false",
+      "functions": {
+        "src/index.ts": { "maxDuration": 60 },
+        "src/app.ts": { "maxDuration": 60 }
+      }
     },
     "landing": {
       "root": "apps/landing",
@@ -13,10 +17,6 @@
       "buildCommand": "pnpm build",
       "outputDirectory": "dist"
     }
-  },
-  "functions": {
-    "apps/backend/src/app.ts": { "maxDuration": 60 },
-    "apps/backend/src/index.ts": { "maxDuration": 60 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "backend" } },

@@ -40,3 +40,15 @@ export function mockLlmEnabled(): boolean {
   return !process.env.LLM_API_KEY?.trim();
 }
 
+const SECRET_ENV = ["LLM_API_KEY", "LLM_FALLBACK_API_KEY", "GRAVITY_API_KEY"] as const;
+
+/** Strip provider secrets before any text is logged or returned to a client. */
+export function redactSecrets(text: string): string {
+  let out = text;
+  for (const name of SECRET_ENV) {
+    const value = process.env[name]?.trim();
+    if (value && value.length >= 6) out = out.split(value).join("[redacted]");
+  }
+  return out;
+}
+
