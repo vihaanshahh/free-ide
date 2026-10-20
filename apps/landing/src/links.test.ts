@@ -53,6 +53,9 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.equal(html.includes("LLM_API_KEY"), false);
   assert.equal(html.includes("GRAVITY_API_KEY"), false);
   assert.equal(html.includes('id="field"'), false);
+  assert.equal(html.includes("data-starfield"), false);
+  assert.match(html, /data-shark/);
+  assert.match(html, /data-hero="shark"/);
   assert.equal(html.includes("dither-frame"), false);
   assert.equal(html.includes("hero-source"), false);
   for (const target of RELEASE_TARGETS) {
