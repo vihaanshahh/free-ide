@@ -2,12 +2,14 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { confirmGravityReward, fetchPlacements } from "./ads.ts";
-import { AD_REWARD_TOKENS, FALLBACK_MODEL, GRAVITY_PIXEL_ID, MAX_OUTPUT_TOKENS, MAX_REQUEST_BYTES, PRIMARY_MODEL } from "./config.ts";
+import { AD_REWARD_TOKENS, FALLBACK_MODEL, GRAVITY_PIXEL_ID, MAX_OUTPUT_TOKENS, MAX_REQUEST_BYTES, PRIMARY_MODEL, TRIAL_TOKENS } from "./config.ts";
 import { mockLlmEnabled, redactSecrets } from "./env.ts";
 import {
   allowModelRequest,
   allowReward,
   allowSessionMint,
+  claimTrial,
+  presentedSessionToken,
   clientAuthorized,
   clientIp,
   commitSessionUse,
@@ -74,11 +76,17 @@ app.get("/api/config", (c) => {
 });
 
 app.get("/api/session", (c) => {
+  const existing = presentedSessionToken(c.req.raw.headers);
+  if (existing) {
+    writeSession(c, existing);
+    return c.json({ token: existing, balance: readBalance(existing) });
+  }
   const ip = clientIp(c.req.raw.headers);
   if (!allowSessionMint(ip)) return c.json({ error: "too many requests" }, 429);
-  const token = issueSessionToken();
+  const balance = claimTrial(ip, TRIAL_TOKENS);
+  const token = issueSessionToken(Date.now(), { bal: balance });
   writeSession(c, token);
-  return c.json({ token, balance: 0 });
+  return c.json({ token, balance });
 });
 
 app.get("/v1/models", () => handleModels());

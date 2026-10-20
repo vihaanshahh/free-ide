@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setRewardProofForTests } from "./ads.ts";
 import { app } from "./app.ts";
-import { AD_REWARD_TOKENS, GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES } from "./config.ts";
+import { AD_REWARD_TOKENS, GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES, TRIAL_TOKENS } from "./config.ts";
 import { issueSessionToken, resetLimitsForTests } from "./guard.ts";
 
 function clientHeaders(ip: string, extra: Record<string, string> = {}): Record<string, string> {
@@ -227,6 +227,28 @@ test("model routes share a per-ip cap", async () => {
     body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "rate-ip" }),
   });
   assert.equal(blocked.status, 429);
+});
+
+test("the first session for an IP gets a server-side trial and the next one does not", async () => {
+  resetLimitsForTests();
+  const first = await app.request("/api/session", { headers: { "x-forwarded-for": "203.0.113.70" } });
+  assert.equal(first.status, 200);
+  const firstBody = (await first.json()) as { balance: number; token: string };
+  assert.equal(firstBody.balance, TRIAL_TOKENS);
+  assert.ok(firstBody.token);
+  const second = await app.request("/api/session", { headers: { "x-forwarded-for": "203.0.113.70" } });
+  const secondBody = (await second.json()) as { balance: number };
+  assert.equal(secondBody.balance, 0);
+  const cookie = (first.headers.get("set-cookie") || "").split(";")[0];
+  const resumed = await app.request("/api/session", {
+    headers: { "x-forwarded-for": "203.0.113.70", cookie },
+  });
+  const resumedBody = (await resumed.json()) as { balance: number; token: string };
+  assert.equal(resumedBody.balance, TRIAL_TOKENS);
+  assert.equal(resumedBody.token, firstBody.token);
+  const other = await app.request("/api/session", { headers: { "x-forwarded-for": "203.0.113.71" } });
+  const otherBody = (await other.json()) as { balance: number };
+  assert.equal(otherBody.balance, TRIAL_TOKENS);
 });
 
 test("a session token from the app authorizes web chat", async () => {

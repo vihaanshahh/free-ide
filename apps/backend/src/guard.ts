@@ -28,6 +28,7 @@ export interface SessionClaims {
 const hits = new Map<string, number[]>();
 const seenSeq = new Map<string, number>();
 const redeemedImpressions = new Set<string>();
+const trialIps = new Set<string>();
 
 export function corsOrigin(origin: string): string | null {
   if (ALLOWED_ORIGINS.has(origin)) return origin;
@@ -103,22 +104,39 @@ export function verifySessionToken(token: string | undefined, now = Date.now()):
   return readSessionToken(token, now) !== null;
 }
 
+function cookieSessionToken(cookie: string): string | undefined {
+  const match = /(?:^|;\s*)subspaces_session=([^;]+)/.exec(cookie);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The signed token the caller already holds, if it still verifies. */
+export function presentedSessionToken(
+  headers: { get(name: string): string | null },
+  now = Date.now(),
+): string | null {
+  const headerToken = headers.get("x-subspaces-token")?.trim();
+  if (headerToken && readSessionToken(headerToken, now)) return headerToken;
+  const fromCookie = cookieSessionToken(headers.get("cookie") || "");
+  if (fromCookie && readSessionToken(fromCookie, now)) return fromCookie;
+  const authorization = headers.get("authorization") || "";
+  if (authorization.startsWith("Bearer ")) {
+    const bearer = authorization.slice("Bearer ".length).trim();
+    if (readSessionToken(bearer, now)) return bearer;
+  }
+  return null;
+}
+
 export function sessionFromHeaders(
   headers: { get(name: string): string | null },
   now = Date.now(),
 ): SessionClaims | null {
-  const headerToken = headers.get("x-subspaces-token")?.trim();
-  const fromHeader = readSessionToken(headerToken, now);
-  if (fromHeader) return fromHeader;
-  const cookie = headers.get("cookie") || "";
-  const match = /(?:^|;\s*)subspaces_session=([^;]+)/.exec(cookie);
-  const fromCookie = readSessionToken(match?.[1] ? decodeURIComponent(match[1]) : undefined, now);
-  if (fromCookie) return fromCookie;
-  const authorization = headers.get("authorization") || "";
-  if (authorization.startsWith("Bearer ")) {
-    return readSessionToken(authorization.slice("Bearer ".length).trim(), now);
-  }
-  return null;
+  const token = presentedSessionToken(headers, now);
+  return token ? readSessionToken(token, now) : null;
 }
 
 export function rotateSession(
@@ -169,6 +187,14 @@ export function allowSessionMint(ip: string, now = Date.now()): boolean {
   return take(`session:${ip}`, 20, WINDOW_MS, now);
 }
 
+/** First session for an IP receives the trial. Later sessions from that IP start at zero. */
+export function claimTrial(ip: string, amount: number): number {
+  const key = ip.slice(0, 80) || "unknown";
+  if (trialIps.has(key)) return 0;
+  trialIps.add(key);
+  return Math.max(0, Math.floor(amount));
+}
+
 export function allowReward(ip: string, now = Date.now()): boolean {
   return take(`reward:${ip}`, REWARD_LIMIT, REWARD_WINDOW_MS, now);
 }
@@ -177,6 +203,7 @@ export function resetLimitsForTests(): void {
   hits.clear();
   seenSeq.clear();
   redeemedImpressions.clear();
+  trialIps.clear();
 }
 
 function sign(body: string): string {

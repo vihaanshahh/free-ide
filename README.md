@@ -123,7 +123,7 @@ One Vercel project, repo root, configured in `vercel.json` as services. Do not s
 | `/` and every path that is not `/api` or `/v1` | `landing` | Static Vite marketing page |
 | `/api/*` and `/v1/*` | `backend` | Hono functions: health, config, ads, chat, and the OpenAI-compatible proxy |
 
-The landing service still builds with `pnpm --filter @subspaces/landing build`. It imports `packages/brand`, so leave **Include source files outside of the Root Directory** enabled. There is no service binding and no required landing environment variable. Download URLs are constants in `apps/landing/src/links.ts`.
+The landing service still builds with `pnpm --filter @subspaces/landing build`. It imports `packages/brand`, so leave **Include source files outside of the Root Directory** enabled. There is no service binding and no required landing environment variable. Download URLs are constants in `apps/landing/src/links.ts`. The page includes a try-it chat that calls `/api/chat` on the same origin. The provider key is not part of that bundle.
 
 `packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, opencode is off. `/api/chat` streams OpenRouter when `LLM_API_KEY` is set and the caller has server-tracked tokens, and the canned stub reply when the key is absent. It does not edit files. Both functions use `maxDuration` 60.
 

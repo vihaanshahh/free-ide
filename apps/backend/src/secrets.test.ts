@@ -10,7 +10,7 @@ const forbidden = ["LLM_API_KEY", "LLM_FALLBACK_API_KEY", "GRAVITY_API_KEY", "sk
 function walk(dir: string, out: string[]): void {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "vendor") continue;
+    if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "vendor" || entry.name === "media") continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       walk(full, out);
