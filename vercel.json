@@ -5,7 +5,10 @@
       "root": "apps/backend",
       "framework": "hono",
       "installCommand": "pnpm install --frozen-lockfile --prod=false",
-      "maxDuration": 60
+      "functions": {
+        "src/index.ts": { "maxDuration": 60 },
+        "src/app.ts": { "maxDuration": 60 }
+      }
     },
     "landing": {
       "root": "apps/landing",
