@@ -19,7 +19,7 @@ The first `pnpm dev` downloads the code-server tarball and the pinned OpenCode b
 
 The landing page is separate from the editor. Its hero is a Forest Ink field of ASCII stars drifting outward, sage to cream. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
 
-With `LLM_API_KEY` unset, chat and `/v1` stay on the canned provider. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill does not run tools. On the hosted API, where opencode is not running, a configured key streams the primary model and falls back to DeepSeek. `mockLlm` is true only when `LLM_API_KEY` is empty.
+With `LLM_API_KEY` unset, chat and `/v1` stay on the canned provider. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill does not run tools. On the hosted API, where opencode is not running, `LLM_API_KEY` is an OpenRouter key. Chat streams `z-ai/glm-5.3-flash` and falls back to `deepseek/deepseek-v4.1-flash` on the same host. `mockLlm` is true only when `LLM_API_KEY` is empty. The key stays on the server: it is not in the landing bundle, the desktop app, the CLI, `/api/config`, or client error text.
 
 Gravity test mode is the default. Set `GRAVITY_PRODUCTION=1` to leave it. Put `GRAVITY_API_KEY` in a gitignored `.env` (see `.env.example`). Do not commit it. Without a key, the slot uses a local card. With a key, empty fill renders nothing. The chat panel always loads the public Gravity pixel `9f5969b9-4f34-449e-8360-992259cd0f50`.
 
@@ -125,9 +125,9 @@ One Vercel project, repo root, configured in `vercel.json` as services. Do not s
 
 The landing service still builds with `pnpm --filter @subspaces/landing build`. It imports `packages/brand`, so leave **Include source files outside of the Root Directory** enabled. There is no service binding and no required landing environment variable. Download URLs are constants in `apps/landing/src/links.ts`.
 
-`packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, opencode is off. `/api/chat` streams the primary model when `LLM_API_KEY` is set, and the canned stub reply when it is not. It does not edit files. Both functions use `maxDuration` 60.
+`packages/chat-ui` is the editor webview bundle, not a deployed site. code-server and `opencode serve` stay on the local `pnpm dev` process. On Vercel, opencode is off. `/api/chat` streams OpenRouter when `LLM_API_KEY` is set and the caller has server-tracked tokens, and the canned stub reply when the key is absent. It does not edit files. Both functions use `maxDuration` 60.
 
-`/v1/chat/completions` and `/api/chat` accept the desktop app (`x-subspaces-client: desktop`), the CLI (`x-subspaces-client: cli`), local opencode (`Authorization: Bearer subspaces-local`), or a token from `GET /api/session` (`x-subspaces-token` or the `subspaces_session` cookie). Browser origins are limited to subspaces.si, www.subspaces.si, subspaces.vercel.app, and localhost. Each IP is capped, and each completion is capped at 2048 output tokens and 48 KB.
+Hosted model calls (Vercel, or any non-loopback host) require an HMAC session from `GET /api/session` with a remaining balance. `x-subspaces-client` and `Authorization: Bearer subspaces-local` do not unlock that path. Balance starts at 0. `POST /api/ads/reward` adds 15k tokens only after the server fetches a Gravity ad and redeems that impression; a body field such as `tokens` or `credit` is ignored, and the CLI's local `subspaces watch-ad` balance is not sent to the API. Each request reserves the prompt plus 2048 output tokens and rotates the session so the spent token cannot be replayed on that instance. Loopback dev still accepts the local bearer so the IDE can call its own proxy. Browser origins are limited to subspaces.si, www.subspaces.si, subspaces.vercel.app, and localhost. Each IP is capped, and each completion is capped at 2048 output tokens and 48 KB.
 
 ## Product goals
 
@@ -139,14 +139,14 @@ Copy `.env.example`. Never commit values.
 
 | Variable | Role |
 | --- | --- |
-| `LLM_API_KEY` | Primary model key. Unset keeps the canned provider. |
-| `LLM_FALLBACK_API_KEY` | Optional. Defaults to `LLM_API_KEY` for the DeepSeek fallback. |
+| `LLM_API_KEY` | OpenRouter key, server only. Unset keeps the canned provider. |
+| `LLM_FALLBACK_API_KEY` | Optional. Defaults to `LLM_API_KEY` for the fallback model. |
 | `GRAVITY_API_KEY` | Server-only Gravity key. Unset keeps the local ad card. |
 | `GRAVITY_PRODUCTION` | Optional. Unset is Gravity test mode. `1` is live. |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | OAuth stub. The callback does not exchange a code. |
 | `SUBSPACES_LANDING_PORT` | Marketing page. Default `41825`. |
 
-Model hosts and ids (`glm-5.3-flash`, `deepseek-v4.1-flash`) are constants in `apps/backend/src/config.ts`. `pnpm dev` reads `.env` without overriding variables already exported. A key in that file turns the live model on.
+The OpenRouter host and model ids (`z-ai/glm-5.3-flash`, `deepseek/deepseek-v4.1-flash`) are constants in `apps/backend/src/config.ts`. `pnpm dev` reads `.env` without overriding variables already exported. A key in that file turns the live model on for the local IDE. On Vercel the same key is used only after a verified ad credit.
 
 ## Layout
 

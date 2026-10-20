@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { LLM_BASE_URL, LLM_FALLBACK_BASE_URL } from "./config.ts";
+import { FALLBACK_MODEL, LLM_BASE_URL, PRIMARY_MODEL } from "./config.ts";
 import { decideCompletion, forwardCompletion, toolTraces, upstreamTargets, type ChatCompletionBody } from "./provider.ts";
 
 const SOURCE = `export async function listInvoices(query: InvoiceQuery = {}) {
@@ -101,12 +101,13 @@ test("upstream fallback is attempted after the primary model fails", async () =>
     const url = String(input);
     seen.push(url);
     const payload = JSON.parse(String(init?.body)) as { model?: string; max_tokens?: number };
+    const headers = new Headers(init?.headers);
     assert.equal(payload.max_tokens, 2048);
-    if (url.startsWith(LLM_BASE_URL)) {
-      assert.equal(payload.model, "glm-5.3-flash");
-      return new Response("nope", { status: 503 });
-    }
-    assert.equal(payload.model, "deepseek-v4.1-flash");
+    assert.equal(headers.get("http-referer"), "https://www.subspaces.si");
+    assert.equal(headers.get("x-title"), "subspaces.si");
+    assert.equal(headers.get("authorization"), "Bearer primary-test");
+    if (payload.model === PRIMARY_MODEL) return new Response("nope", { status: 503 });
+    assert.equal(payload.model, FALLBACK_MODEL);
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'));
@@ -122,7 +123,7 @@ test("upstream fallback is attempted after the primary model fails", async () =>
       fetchImpl,
     );
     assert.equal(response.status, 200);
-    assert.deepEqual(seen, [`${LLM_BASE_URL}/chat/completions`, `${LLM_FALLBACK_BASE_URL}/chat/completions`]);
+    assert.deepEqual(seen, [`${LLM_BASE_URL}/chat/completions`, `${LLM_BASE_URL}/chat/completions`]);
     assert.match(await response.text(), /ok/);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
