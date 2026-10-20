@@ -351,7 +351,8 @@ export function upstreamTargets(): UpstreamTarget[] {
   const fallbackBase = LLM_FALLBACK_BASE_URL.replace(/\/$/, "");
   const targets: UpstreamTarget[] = [];
   if (primaryKey) targets.push({ base: primaryBase, key: primaryKey, model: PRIMARY_MODEL });
-  if (fallbackKey && (FALLBACK_MODEL !== PRIMARY_MODEL || fallbackBase !== primaryBase)) {
+  const sameUpstream = (FALLBACK_MODEL as string) === PRIMARY_MODEL && fallbackBase === primaryBase;
+  if (fallbackKey && !sameUpstream) {
     targets.push({ base: fallbackBase, key: fallbackKey, model: FALLBACK_MODEL });
   }
   return targets;
