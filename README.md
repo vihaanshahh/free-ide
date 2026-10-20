@@ -17,7 +17,7 @@ The first `pnpm dev` downloads the code-server tarball and the pinned OpenCode b
 - the editor at [http://127.0.0.1:41823](http://127.0.0.1:41823) (auth disabled for local demo)
 - the proxy at [http://127.0.0.1:41824](http://127.0.0.1:41824)
 
-The landing page is separate from the editor. Its hero is a Forest Ink field of ASCII stars drifting outward, sage to cream. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
+The landing page is separate from the editor. The hero is cream type on a flat Forest Ink stage around the demo video. **Public beta** download buttons are hardcoded. The page does not read `VITE_DOWNLOAD_BASE_URL`, `NEXT_PUBLIC_DOWNLOAD_URL`, or `VITE_IDE_URL`, and it has no waitlist. It never links at the private repo.
 
 With `LLM_API_KEY` unset, chat and `/v1` stay on the canned provider. The **opencode** pill is a real `opencode serve` process. Its model calls go through the proxy at `/v1`. With the canned provider, a prompt that asks to edit `src/routes/invoices.ts` reads the file and applies the change in the demo workspace. The **stub** pill does not run tools. On the hosted API, where opencode is not running, `LLM_API_KEY` is an OpenRouter key. Chat streams `z-ai/glm-5.3-flash` and falls back to `deepseek/deepseek-v4.1-flash` on the same host. `mockLlm` is true only when `LLM_API_KEY` is empty. The key stays on the server: it is not in the landing bundle, the desktop app, the CLI, `/api/config`, or client error text.
 
@@ -150,7 +150,7 @@ The OpenRouter host and model ids (`z-ai/glm-5.3-flash`, `deepseek/deepseek-v4.1
 
 ## Layout
 
-- `apps/landing` — cream marketing page and the ASCII starfield hero
+- `apps/landing` — cream marketing page with a flat Forest Ink stage
 - `apps/backend` — chat adapter, OpenAI-compatible `/v1` proxy, parallel `getAds` (`below_response` and `right_response` / `sidebar`), in-memory token ledger
 - `vendor/opencode` — pinned OpenCode source (submodule). The binary is downloaded beside it and gitignored
 - `apps/extension` — auxiliary-bar chat and an explorer sponsored view, loaded by code-server
