@@ -19,7 +19,9 @@
         subspaces.si
       </a>
       <nav class="nav" aria-label="Primary">
+        <a href="#try">Try it</a>
         <a href="#demo">Demo</a>
+        <a href="#tokens">Tokens</a>
         <a href="#how">How it works</a>
         <a href="#faq">FAQ</a>
       </nav>
@@ -52,6 +54,7 @@
         </div>
 
         <div class="stage" id="demo">
+          <canvas class="stage-field" data-starfield aria-hidden="true"></canvas>
           <div class="stage-window" data-showcase>
             <video
               data-demo
@@ -69,6 +72,63 @@
             </video>
           </div>
         </div>
+      </section>
+
+      <section class="try" id="try">
+        <div class="try-copy" data-reveal>
+          <p class="eyebrow">Try it</p>
+          <h2>Ask the model. A card pays for the tokens.</h2>
+          <p class="try-lede">
+            This box uses the hosted chat. The server issues a small trial balance for this network. When it runs out, watch an ad to unlock about 15,000 more tokens.
+          </p>
+        </div>
+        <div class="try-panel" data-try-chat data-testid="try-chat">
+          <div class="try-bar">
+            <p class="try-status" data-try-status>Connecting</p>
+            <p class="try-balance" data-try-balance data-testid="try-balance">Tokens</p>
+          </div>
+          <div class="try-log" data-try-log aria-live="polite"></div>
+          <form class="try-form" data-try-form>
+            <label class="sr-only" for="try-prompt">Message</label>
+            <textarea id="try-prompt" data-try-input rows="2" maxlength="2000" placeholder="Ask for a small code change"></textarea>
+            <button class="btn-primary" type="submit" data-try-send>Send</button>
+          </form>
+          <button class="try-watch" type="button" data-try-watch>Watch an ad to unlock more tokens</button>
+        </div>
+      </section>
+
+      <section class="tokens" id="tokens" data-testid="token-explainer">
+        <div class="tokens-copy" data-reveal>
+          <h2>How ads earn tokens.</h2>
+          <p>subspaces.si stays free. A sponsored card under the reply is what pays for the model.</p>
+        </div>
+        <ol class="token-flow">
+          <li data-reveal>
+            <span class="token-figure">Free</span>
+            <h3>subspaces.si is free</h3>
+            <p>There is no checkout and no Pro tier. A reply does not charge you.</p>
+          </li>
+          <li data-reveal>
+            <span class="token-figure">Card</span>
+            <h3>Each reply shows a small sponsored card</h3>
+            <p>The card sits under the answer. It is the only price of the chat.</p>
+          </li>
+          <li data-reveal>
+            <span class="token-figure">+15k</span>
+            <h3>Watching an ad unlocks about 15,000 tokens</h3>
+            <p>The server adds the tokens after it verifies the ad. A number typed in the browser does not count.</p>
+          </li>
+          <li data-reveal>
+            <span class="token-figure">≥ 0</span>
+            <h3>The balance never goes negative</h3>
+            <p>When the tokens run out, the reply waits. It does not bill you.</p>
+          </li>
+          <li data-reveal>
+            <span class="token-figure">Fit</span>
+            <h3>Ads are context-relevant via Gravity</h3>
+            <p>Gravity matches the card to the conversation. Paths, secrets, and source are stripped first.</p>
+          </li>
+        </ol>
       </section>
 
       <section class="split" id="how">
@@ -125,7 +185,7 @@
           </article>
           <article data-reveal>
             <h3>Flash only</h3>
-            <p><code>glm-5.3-flash</code>, with <code>deepseek-v4.1-flash</code> if the first call fails. Paths and secrets are stripped before any ad request.</p>
+            <p>GLM-5.3-Flash, with DeepSeek V4.1 Flash if the first call fails. Paths and secrets are stripped before any ad request.</p>
           </article>
           <article data-reveal>
             <h3>Sponsored card</h3>
@@ -177,8 +237,10 @@
         <div>
           <p class="footer-label">Product</p>
           <div class="footer-links">
+            <a href="#try">Try it</a>
             <a href="#download">Download</a>
             <a href="#demo">Demo</a>
+            <a href="#tokens">Tokens</a>
             <a href="#how">How it works</a>
           </div>
         </div>

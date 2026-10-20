@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const port = Number(process.env.SUBSPACES_LANDING_PORT || 41825);
+const apiPort = Number(process.env.SUBSPACES_API_PORT || 41824);
 
 export default defineConfig({
   server: {
@@ -11,6 +12,10 @@ export default defineConfig({
     port,
     strictPort: true,
     fs: { allow: [repoRoot] },
+    proxy: {
+      "/api": `http://127.0.0.1:${apiPort}`,
+      "/v1": `http://127.0.0.1:${apiPort}`,
+    },
   },
   preview: {
     host: "0.0.0.0",
