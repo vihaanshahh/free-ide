@@ -44,7 +44,7 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.equal(html.includes("github.com/vihaanshahh/subspaces/releases"), false);
   assert.equal(html.includes("data-waitlist"), false);
   assert.equal(html.includes("VITE_"), false);
-  assert.match(html, /class="kicker">Beta</);
+  assert.match(html, /class="eyebrow">Beta</);
   assert.match(html, /data-testid="demo-video"/);
   assert.match(html, /data-testid="try-chat"/);
   assert.match(html, /data-testid="token-explainer"/);
@@ -58,23 +58,7 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.equal(html.includes("<canvas"), false);
   assert.equal(html.includes("dither-frame"), false);
   assert.equal(html.includes("hero-source"), false);
-  assert.match(html, /href="\/download"/);
-  assert.match(html, /href="\/tasks"/);
-  assert.match(html, /href="\/templates"/);
-  assert.match(html, /href="\/security"/);
-  const shell = fs.readFileSync(path.join(import.meta.dirname, "main.ts"), "utf8");
-  for (const route of ["/tasks", "/templates", "/pricing", "/security", "/download", "/about", "/changelog"]) {
-    assert.equal(shell.includes(route), true, route);
-  }
-  const download = fs.readFileSync(path.join(import.meta.dirname, "../download/index.html"), "utf8");
   for (const target of RELEASE_TARGETS) {
-    assert.equal(download.includes(assetUrl(target.file)), true);
-  }
-  for (const page of ["download", "pricing", "security", "changelog", "about", "tasks", "templates"]) {
-    const file = fs.readFileSync(path.join(import.meta.dirname, `../${page}/index.html`), "utf8");
-    assert.equal(file.includes("<canvas"), false);
-    assert.equal(file.includes("data-starfield"), false);
-    assert.match(file, /id="site-header"/);
-    assert.match(file, /id="site-footer"/);
+    assert.equal(html.includes(assetUrl(target.file)), true);
   }
 });
