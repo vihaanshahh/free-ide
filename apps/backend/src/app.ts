@@ -1,29 +1,25 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
-import { confirmGravityReward, fetchPlacements } from "./ads.ts";
-import { AD_REWARD_TOKENS, FALLBACK_MODEL, GRAVITY_PIXEL_ID, MAX_OUTPUT_TOKENS, MAX_REQUEST_BYTES, PRIMARY_MODEL, TRIAL_TOKENS } from "./config.ts";
+import { fetchPlacements } from "./ads.ts";
+import { FALLBACK_MODEL, GRAVITY_PIXEL_ID, MAX_OUTPUT_TOKENS, MAX_REQUEST_BYTES, PRIMARY_MODEL, TRIAL_TOKENS } from "./config.ts";
 import { mockLlmEnabled, redactSecrets } from "./env.ts";
 import {
   allowModelRequest,
-  allowReward,
   allowSessionMint,
   claimTrial,
   presentedSessionToken,
   clientAuthorized,
   clientIp,
-  commitSessionUse,
   corsOrigin,
   isHostedRequest,
   issueSessionToken,
   originAllowed,
-  redeemImpression,
-  rewardCooldownOk,
-  rotateSession,
   sessionFromHeaders,
   type SessionClaims,
 } from "./guard.ts";
 import type { OpenCodeHarness } from "./harness.ts";
+import { allowHostedModelRequest, hostedBalance, hostedStateConfigured, mintHostedSession, spendHostedSession } from "./hosted-state.ts";
 import { estimateTokens } from "./ledger.ts";
 import { DIRECT_CHAT_PROMPT, streamFlash, streamMock } from "./llm.ts";
 import { handleChatCompletions, handleModels, withProviderSession, type ChatCompletionBody } from "./provider.ts";
@@ -70,29 +66,49 @@ app.get("/api/config", (c) => {
     modelLabel: "GLM-5.3-Flash",
     primaryModel: PRIMARY_MODEL,
     fallbackModel: FALLBACK_MODEL,
-    adReward: AD_REWARD_TOKENS,
+    adReward: 0,
+    rewardAvailable: false,
     softCap: 15_000_000,
   });
 });
 
-app.get("/api/session", (c) => {
-  const existing = presentedSessionToken(c.req.raw.headers);
-  if (existing) {
-    writeSession(c, existing);
-    return c.json({ token: existing, balance: readBalance(existing) });
+app.get("/api/session", async (c) => {
+  const hosted = isHostedRequest(c.req.url);
+  if (hosted && !hostedStateConfigured()) return c.json({ error: "hosted sessions are unavailable" }, 503);
+  try {
+    const existing = presentedSessionToken(c.req.raw.headers);
+    if (existing) {
+      const balance = hosted
+        ? await hostedBalance(sessionFromHeaders(c.req.raw.headers)!.sid)
+        : readBalance(existing);
+      if (balance !== null) {
+        writeSession(c, existing);
+        return c.json({ token: existing, balance });
+      }
+    }
+    const ip = clientIp(c.req.raw.headers, hosted);
+    if (hosted) {
+      const token = issueSessionToken(Date.now(), { bal: 0 });
+      const claims = sessionFromHeaders({ get: (name) => name === "x-subspaces-token" ? token : null })!;
+      const minted = await mintHostedSession(claims.sid, ip, claims.exp);
+      if (!minted.ok) return c.json({ error: "too many requests" }, 429);
+      writeSession(c, token);
+      return c.json({ token, balance: minted.balance });
+    }
+    if (!allowSessionMint(ip)) return c.json({ error: "too many requests" }, 429);
+    const balance = claimTrial(ip, TRIAL_TOKENS);
+    const token = issueSessionToken(Date.now(), { bal: balance });
+    writeSession(c, token);
+    return c.json({ token, balance });
+  } catch {
+    return c.json({ error: "hosted sessions are unavailable" }, 503);
   }
-  const ip = clientIp(c.req.raw.headers);
-  if (!allowSessionMint(ip)) return c.json({ error: "too many requests" }, 429);
-  const balance = claimTrial(ip, TRIAL_TOKENS);
-  const token = issueSessionToken(Date.now(), { bal: balance });
-  writeSession(c, token);
-  return c.json({ token, balance });
 });
 
 app.get("/v1/models", () => handleModels());
 
 app.post("/v1/chat/completions", async (c) => {
-  const admission = gate(c.req.raw.headers, contentLength(c.req.raw.headers), c.req.url);
+  const admission = await gate(c.req.raw.headers, contentLength(c.req.raw.headers), c.req.url);
   if (isDenied(admission)) return c.json({ error: { message: admission.message } }, admission.status);
   const raw = await c.req.text();
   if (raw.length > MAX_REQUEST_BYTES) return c.json({ error: { message: "request is too large" } }, 413);
@@ -103,7 +119,7 @@ app.post("/v1/chat/completions", async (c) => {
     body = null;
   }
   if (!body || !Array.isArray(body.messages)) return c.json({ error: { message: "messages is required" } }, 400);
-  const spent = spendLive(admission, estimateTokens(raw));
+  const spent = await spendLive(admission, estimateTokens(raw));
   if (isDenied(spent)) return c.json({ error: { message: spent.message } }, spent.status);
   const headerSession = c.req.header("x-subspaces-session");
   const response = headerSession
@@ -114,32 +130,11 @@ app.post("/v1/chat/completions", async (c) => {
 
 app.post("/api/ads/reward", async (c) => {
   if (!originAllowed(c.req.header("origin") ?? undefined)) return c.json({ error: "origin is not allowed" }, 403);
-  const ip = clientIp(c.req.raw.headers);
-  if (!allowReward(ip)) return c.json({ error: "too many requests" }, 429);
   const session = sessionFromHeaders(c.req.raw.headers);
   if (!session) return c.json({ error: "missing client session" }, 401);
-  const raw = await c.req.text();
-  if (raw.length > MAX_REQUEST_BYTES) return c.json({ error: "request is too large" }, 413);
-  if (raw.trim()) {
-    try {
-      JSON.parse(raw);
-    } catch {
-      return c.json({ error: "invalid reward request" }, 400);
-    }
-  }
-  if (!rewardCooldownOk(session)) return c.json({ error: "too many requests", balance: session.bal }, 429);
-  const proof = await confirmGravityReward({
-    headers: headerRecord(c.req.raw.headers),
-    remoteAddress: ip,
-  });
-  if (!proof.ok || !redeemImpression(proof.impressionId)) {
-    return c.json({ error: "ad was not verified", balance: session.bal }, 402);
-  }
-  if (!commitSessionUse(session)) return c.json({ error: "missing client session" }, 401);
-  const balance = session.bal + AD_REWARD_TOKENS;
-  const token = rotateSession(session, { bal: balance, rew: Date.now() });
-  writeSession(c, token);
-  return c.json({ token, balance, ad: proof.ad });
+  // Gravity exposes ad delivery and client-side impression pixels, but no
+  // server-confirmed impression proof. A creative fetch cannot grant credit.
+  return c.json({ error: "verified ad rewards are unavailable" }, 501);
 });
 
 app.get("/api/auth/github", (c) => {
@@ -210,7 +205,7 @@ app.get("/api/ads/sidebar", async (c) => {
 });
 
 app.post("/api/chat", async (c) => {
-  const admission = gate(c.req.raw.headers, contentLength(c.req.raw.headers), c.req.url);
+  const admission = await gate(c.req.raw.headers, contentLength(c.req.raw.headers), c.req.url);
   if (isDenied(admission)) return c.json({ error: admission.message }, admission.status);
   const raw = await c.req.text();
   if (raw.length > MAX_REQUEST_BYTES) return c.json({ error: "request is too large" }, 413);
@@ -240,7 +235,7 @@ app.post("/api/chat", async (c) => {
   const before = ledger.snapshot(sessionId);
   const userText = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
   const promptTokens = estimateTokens(messages.map((message) => message.content).join("\n"));
-  const spent = spendLive(admission, promptTokens);
+  const spent = await spendLive(admission, promptTokens);
   if (isDenied(spent)) return c.json({ error: spent.message }, spent.status);
   if (spent.token) writeSession(c, spent.token);
   const headerBag = headerRecord(c.req.raw.headers);
@@ -315,7 +310,7 @@ app.post("/api/chat", async (c) => {
         usage,
         harness: ranHarness,
         mockLlm: mock,
-        ...(spent.token ? { token: spent.token, balance: readBalance(spent.token) } : {}),
+        ...(spent.token ? { token: spent.token, balance: spent.balance } : {}),
       }),
     });
   });
@@ -349,38 +344,54 @@ function contentLength(headers: Headers): number {
   return Number.isFinite(value) ? value : 0;
 }
 
-type Denial = { status: 401 | 402 | 403 | 413 | 429; message: string };
-type Admission = { session: SessionClaims | null; hostedLive: boolean };
-type Spend = Denial | { token: string };
+type Denial = { status: 401 | 402 | 403 | 413 | 429 | 503; message: string };
+type Admission = { session: SessionClaims | null; hostedLive: boolean; token: string };
+type Spend = Denial | { token: string; balance?: number };
 
 function isDenied(result: Denial | Admission | Spend): result is Denial {
   return "status" in result;
 }
 
-function gate(headers: Headers, claimedLength: number, requestUrl: string): Denial | Admission {
+async function gate(headers: Headers, claimedLength: number, requestUrl: string): Promise<Denial | Admission> {
   if (claimedLength > MAX_REQUEST_BYTES) return { status: 413, message: "request is too large" };
   if (!originAllowed(headers.get("origin") ?? undefined)) return { status: 403, message: "origin is not allowed" };
   const hostedLive = isHostedRequest(requestUrl) && !mockLlmEnabled();
   if (hostedLive) {
+    if (!hostedStateConfigured()) return { status: 503, message: "hosted sessions are unavailable" };
+    const token = presentedSessionToken(headers);
     const session = sessionFromHeaders(headers);
-    if (!session) return { status: 401, message: "missing client session" };
-    if (session.bal < 1) return { status: 402, message: "watch an ad to unlock tokens" };
-    if (!allowModelRequest(clientIp(headers))) return { status: 429, message: "too many requests" };
-    return { session, hostedLive: true };
+    if (!session || !token) return { status: 401, message: "missing client session" };
+    try {
+      const balance = await hostedBalance(session.sid);
+      if (balance === null) return { status: 401, message: "missing client session" };
+      if (balance < 1) return { status: 402, message: "no tokens left" };
+      if (!await allowHostedModelRequest(clientIp(headers, true))) return { status: 429, message: "too many requests" };
+      return { session, hostedLive: true, token };
+    } catch {
+      return { status: 503, message: "hosted sessions are unavailable" };
+    }
   }
   if (!clientAuthorized(headers)) return { status: 401, message: "missing client session" };
   if (!allowModelRequest(clientIp(headers))) return { status: 429, message: "too many requests" };
-  return { session: sessionFromHeaders(headers), hostedLive: false };
+  return { session: sessionFromHeaders(headers), hostedLive: false, token: "" };
 }
 
-function spendLive(admission: Admission, promptTokens: number): Spend {
+async function spendLive(admission: Admission, promptTokens: number): Promise<Spend> {
   if (!admission.hostedLive) return { token: "" };
   const session = admission.session;
   if (!session) return { status: 401, message: "missing client session" };
   const reserve = Math.max(1, promptTokens) + MAX_OUTPUT_TOKENS;
-  if (session.bal < reserve) return { status: 402, message: "watch an ad to unlock tokens" };
-  if (!commitSessionUse(session)) return { status: 401, message: "missing client session" };
-  return { token: rotateSession(session, { bal: session.bal - reserve }) };
+  try {
+    const spent = await spendHostedSession(session.sid, reserve);
+    if (!spent.ok) {
+      return spent.reason === "balance"
+        ? { status: 402, message: "no tokens left" }
+        : { status: 401, message: "missing client session" };
+    }
+    return { token: admission.token, balance: spent.balance };
+  } catch {
+    return { status: 503, message: "hosted sessions are unavailable" };
+  }
 }
 
 function writeSession(c: { header: (name: string, value: string) => void; req: { header: (name: string) => string | undefined; url: string } }, token: string): void {
@@ -388,7 +399,7 @@ function writeSession(c: { header: (name: string, value: string) => void; req: {
   c.header("x-subspaces-token", token);
   c.header(
     "set-cookie",
-    `subspaces_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200${secure ? "; Secure" : ""}`,
+    `subspaces_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure ? "; Secure" : ""}`,
   );
 }
 
@@ -399,7 +410,7 @@ function withSession(c: { req: { header: (name: string) => string | undefined; u
   const secure = c.req.header("x-forwarded-proto") === "https" || c.req.url.startsWith("https:");
   headers.append(
     "set-cookie",
-    `subspaces_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200${secure ? "; Secure" : ""}`,
+    `subspaces_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure ? "; Secure" : ""}`,
   );
   return new Response(response.body, { status: response.status, headers });
 }

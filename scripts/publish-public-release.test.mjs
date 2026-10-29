@@ -82,7 +82,7 @@ test("staging keeps versioned archives and records sha256", () => {
   assert.match(sums, new RegExp(`${linux.sha256}  ${linux.file}`));
 });
 
-test("missing token warns and does not fail", () => {
+test("missing public release token fails the publish job", () => {
   const env = { ...process.env };
   delete env.RELEASES_REPO_TOKEN;
   delete env.GITHUB_TOKEN;
@@ -92,7 +92,6 @@ test("missing token warns and does not fail", () => {
     env,
     encoding: "utf8",
   });
-  assert.equal(result.status, 0);
-  assert.match(result.stdout, /::warning::/);
-  assert.match(result.stdout, /Skipping the public download upload/);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /RELEASES_REPO_TOKEN is required/);
 });

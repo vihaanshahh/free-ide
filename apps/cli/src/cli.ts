@@ -17,6 +17,7 @@ import {
 import {
   configPathFor,
   DEFAULT_API,
+  hostedApi,
   OPENCODE_VERSION,
   opencodeEnv,
   PRIMARY_MODEL_ID,
@@ -34,6 +35,7 @@ import {
   type LaunchRequest,
 } from "./launch.ts";
 import { colorizeReply, estimateTokens, mockReply } from "./reply.ts";
+import { refreshHostedSession } from "./session.ts";
 import { paint, useColor, type Paint } from "./style.ts";
 
 const CLI_VERSION = "0.1.0";
@@ -88,8 +90,8 @@ Usage
   subspaces                         interactive opencode
   subspaces run "<prompt>"          one reply, then a sponsored card
   subspaces login                   account stub
-  subspaces balance                 tokens left
-  subspaces watch-ad                sponsored card, then +15k tokens
+  subspaces balance                 hosted or local demo balance
+  subspaces watch-ad                local demo reward only
 
 Environment
   SUBSPACES_API       OpenAI-compatible proxy (default ${DEFAULT_API})
@@ -157,17 +159,34 @@ function commandLogin(io: Io): number {
   return 0;
 }
 
-function commandBalance(io: Io): number {
+async function commandBalance(io: Io): Promise<number> {
   const p = colors(io);
+  const mode = await decideMode(io.env, io.fetch);
+  const api = resolveApi(io.env);
+  if (mode === "live" && hostedApi(api)) {
+    try {
+      const session = await refreshHostedSession(api, subspacesHome(io.env), io.fetch);
+      io.writeOut(`${header(p)}\n\ntokens left  ${p.cream(formatTokens(session.balance))}\nsource       hosted API\n`);
+      return 0;
+    } catch (error) {
+      io.writeErr(`${error instanceof Error ? error.message : "Hosted session is unavailable."}\n`);
+      return 1;
+    }
+  }
   const balance = loadBalance(balancePath(subspacesHome(io.env)));
-  io.writeOut(`${header(p)}\n\n${renderBalance(balance, p)}\n`);
+  io.writeOut(`${header(p)}\n\n${renderBalance(balance, p)}\nsource       local demo\n`);
   return 0;
 }
 
 async function commandWatchAd(io: Io): Promise<number> {
   const p = colors(io);
   const mode = await decideMode(io.env, io.fetch);
-  const card = mode === "mock" ? MOCK_BELOW_CARD : await loadSponsoredCard(resolveApi(io.env), io.fetch);
+  const api = resolveApi(io.env);
+  if (mode === "live" && hostedApi(api)) {
+    io.writeErr("Hosted ad rewards are unavailable until the ad provider supplies server-confirmed proof. No tokens were added.\n");
+    return 1;
+  }
+  const card = mode === "mock" ? MOCK_BELOW_CARD : await loadSponsoredCard(api, io.fetch);
   io.writeOut(`${header(p)}\n\n${renderSponsoredCard(card, { color: p.enabled })}\n`);
   const seconds = adSeconds(io.env);
   for (let left = seconds; left >= 1; left -= 1) {
@@ -187,10 +206,10 @@ async function commandRun(prompt: string, io: Io): Promise<number> {
   const mode = await decideMode(io.env, io.fetch);
   const api = resolveApi(io.env);
   const home = subspacesHome(io.env);
-  const configFile = writeOpencodeConfig(configPathFor(home), api);
   io.writeOut(`${renderBanner(p, mode)}\n\n${p.sage("› ")}${p.cream(prompt)}\n\n`);
 
   if (mode === "mock") {
+    writeOpencodeConfig(configPathFor(home), api);
     const reply = mockReply(prompt);
     io.writeOut(`${colorizeReply(reply, p)}\n\n`);
     io.writeOut(`${renderSponsoredCard(MOCK_BELOW_CARD, { color: p.enabled })}\n`);
@@ -206,12 +225,27 @@ async function commandRun(prompt: string, io: Io): Promise<number> {
     );
     return 1;
   }
+  let providerKey: string | undefined;
+  if (hostedApi(api)) {
+    try {
+      const session = await refreshHostedSession(api, home, io.fetch);
+      providerKey = session.token;
+      if (session.balance < 2049) {
+        io.writeErr(`Hosted balance is ${formatTokens(session.balance)} tokens; this reply needs at least 2,049.\n`);
+        return 1;
+      }
+    } catch (error) {
+      io.writeErr(`${error instanceof Error ? error.message : "Hosted session is unavailable."}\n`);
+      return 1;
+    }
+  }
+  const configFile = writeOpencodeConfig(configPathFor(home), api, providerKey);
   let code: number;
   try {
     code = await io.launch({
       bin,
       args: runArgs(prompt, `subspaces/${PRIMARY_MODEL_ID}`),
-      env: opencodeEnv(io.env, home, configFile),
+      env: opencodeEnv(io.env, home, configFile, providerKey),
       cwd: io.cwd,
     });
   } catch (error) {
@@ -221,8 +255,10 @@ async function commandRun(prompt: string, io: Io): Promise<number> {
   if (code !== 0) return code;
   const card = await loadSponsoredCard(api, io.fetch);
   io.writeOut(`\n${renderSponsoredCard(card, { color: p.enabled })}\n`);
-  const file = balancePath(home);
-  saveBalance(file, charge(loadBalance(file), estimateTokens(prompt) + 256));
+  if (!hostedApi(api)) {
+    const file = balancePath(home);
+    saveBalance(file, charge(loadBalance(file), estimateTokens(prompt) + 256));
+  }
   return 0;
 }
 
@@ -231,9 +267,9 @@ async function commandInteractive(io: Io): Promise<number> {
   const mode = await decideMode(io.env, io.fetch);
   const api = resolveApi(io.env);
   const home = subspacesHome(io.env);
-  const configFile = writeOpencodeConfig(configPathFor(home), api);
   io.writeOut(`${renderBanner(p, mode)}\n\n`);
   if (mode === "mock") {
+    writeOpencodeConfig(configPathFor(home), api);
     if (!io.stdinIsTTY) {
       io.writeOut('Mock mode. Pass a prompt with subspaces run "...".\n');
       return 0;
@@ -247,11 +283,26 @@ async function commandInteractive(io: Io): Promise<number> {
     );
     return 1;
   }
+  let providerKey: string | undefined;
+  if (hostedApi(api)) {
+    try {
+      const session = await refreshHostedSession(api, home, io.fetch);
+      providerKey = session.token;
+      if (session.balance < 2049) {
+        io.writeErr(`Hosted balance is ${formatTokens(session.balance)} tokens; a reply needs at least 2,049.\n`);
+        return 1;
+      }
+    } catch (error) {
+      io.writeErr(`${error instanceof Error ? error.message : "Hosted session is unavailable."}\n`);
+      return 1;
+    }
+  }
+  const configFile = writeOpencodeConfig(configPathFor(home), api, providerKey);
   try {
     return await io.launch({
       bin,
       args: tuiArgs(`subspaces/${PRIMARY_MODEL_ID}`),
-      env: opencodeEnv(io.env, home, configFile),
+      env: opencodeEnv(io.env, home, configFile, providerKey),
       cwd: io.cwd,
     });
   } catch (error) {

@@ -48,8 +48,8 @@ test("landing markup links the public beta and has no waitlist", () => {
   assert.match(html, /data-testid="demo-video"/);
   assert.match(html, /data-testid="try-chat"/);
   assert.match(html, /data-testid="token-explainer"/);
-  assert.match(html, /Watch an ad to unlock more tokens/);
-  assert.match(html, /How ads earn tokens/);
+  assert.match(html, /Ad rewards unavailable in beta/);
+  assert.match(html, /How the free beta works/);
   assert.equal(html.includes("LLM_API_KEY"), false);
   assert.equal(html.includes("GRAVITY_API_KEY"), false);
   assert.equal(html.includes('id="field"'), false);

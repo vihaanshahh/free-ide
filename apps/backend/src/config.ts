@@ -21,8 +21,5 @@ export const MAX_OUTPUT_TOKENS = 2048;
 export const MAX_REQUEST_BYTES = 48_000;
 export const MODEL_REQUESTS_PER_MINUTE = 30;
 
-/** Granted only after the server verifies a Gravity impression. */
-export const AD_REWARD_TOKENS = 15_000;
-
 /** One short hosted reply. Issued once per IP by the server, not by the client. */
 export const TRIAL_TOKENS = 4_096;

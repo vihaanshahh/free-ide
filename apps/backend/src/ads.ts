@@ -233,36 +233,3 @@ export async function fetchPlacements(input: {
 
   return { below, sidebar };
 }
-
-export interface RewardProof {
-  ok: boolean;
-  impressionId: string;
-  ad: AdCreative | null;
-}
-
-let rewardOverride: (() => Promise<RewardProof>) | null = null;
-
-export function setRewardProofForTests(next: (() => Promise<RewardProof>) | null): void {
-  rewardOverride = next;
-}
-
-/**
- * Credits require an ad the server fetched from Gravity.
- * Client-supplied token amounts and impression URLs are ignored.
- */
-export async function confirmGravityReward(input: {
-  headers: Record<string, string | undefined>;
-  remoteAddress?: string;
-}): Promise<RewardProof> {
-  if (rewardOverride) return rewardOverride();
-  const { below, sidebar } = await fetchPlacements({
-    messages: [{ role: "user", content: "Sponsored placement for subspaces.si." }],
-    headers: input.headers,
-    remoteAddress: input.remoteAddress,
-  });
-  const ad = [below, sidebar].find((item) => item?.source === "gravity") ?? null;
-  if (!ad || ad.source !== "gravity") return { ok: false, impressionId: "", ad: null };
-  const impressionId = (ad.impUrl || `gravity:${ad.url}:${ad.title}`).trim();
-  if (!impressionId) return { ok: false, impressionId: "", ad: null };
-  return { ok: true, impressionId, ad };
-}

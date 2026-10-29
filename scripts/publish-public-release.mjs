@@ -21,10 +21,6 @@ export function sha256File(filePath) {
   return hash.digest("hex");
 }
 
-function warn(message) {
-  console.log(`::warning::${message}`);
-}
-
 function redact(text, token) {
   if (!token) return text;
   return text.split(token).join("[redacted]");
@@ -102,19 +98,6 @@ export function classifyReleaseView(output) {
   return "error";
 }
 
-function denied(output) {
-  return classifyReleaseView(output) === "denied";
-}
-
-function tokenCandidates() {
-  const github = (process.env.GITHUB_TOKEN || "").trim();
-  const secret = (process.env.RELEASES_REPO_TOKEN || "").trim();
-  const list = [];
-  if (github) list.push({ token: github, via: "GITHUB_TOKEN" });
-  if (secret && secret !== github) list.push({ token: secret, via: "RELEASES_REPO_TOKEN" });
-  return list;
-}
-
 function uploadRelease(token, repo, tag, title, notes, files) {
   const view = gh(["release", "view", tag, "--repo", repo], token);
   if (!view.ok) {
@@ -131,13 +114,8 @@ function uploadRelease(token, repo, tag, title, notes, files) {
 }
 
 function publish() {
-  const candidates = tokenCandidates();
-  if (!candidates.length) {
-    warn(
-      "Skipping the public download upload. Neither GITHUB_TOKEN nor RELEASES_REPO_TOKEN is set. The landing page already links the public beta URLs. A token with contents write on vihaanshahh/subspaces-releases is required to publish a future tag. Nothing was billed.",
-    );
-    return;
-  }
+  const token = (process.env.RELEASES_REPO_TOKEN || "").trim();
+  if (!token) throw new Error("RELEASES_REPO_TOKEN is required to publish public downloads.");
   if (!fs.existsSync(RELEASE_DIR)) {
     throw new Error(`No ${RELEASE_DIR}. Package or download the private release assets first.`);
   }
@@ -166,28 +144,12 @@ function publish() {
   const files = [...manifest.assets.map((asset) => path.join(stageDir, asset.file)), path.join(stageDir, "SHA256SUMS")];
   const title = releaseTitle(tag, staged.version);
 
-  let last = "";
-  for (const candidate of candidates) {
-    try {
-      uploadRelease(candidate.token, repo, tag, title, notes, files);
-      console.log(`Published ${tag} to ${repo} with ${candidate.via} (${staged.assets.length} archives + SHA256SUMS).`);
-      for (const asset of manifest.assets) {
-        const known = targetById(asset.id);
-        console.log(`${known ? known.label : asset.id} ${asset.url}`);
-      }
-      return;
-    } catch (error) {
-      last = error instanceof Error ? error.message : String(error);
-      if (candidate.via === "GITHUB_TOKEN" && denied(last)) {
-        warn(`GITHUB_TOKEN cannot write to ${repo}. ${last}`);
-        continue;
-      }
-      throw error;
-    }
+  uploadRelease(token, repo, tag, title, notes, files);
+  console.log(`Published ${tag} to ${repo} (${staged.assets.length} archives + SHA256SUMS).`);
+  for (const asset of manifest.assets) {
+    const known = targetById(asset.id);
+    console.log(`${known ? known.label : asset.id} ${asset.url}`);
   }
-  warn(
-    `Skipping the public download upload. GITHUB_TOKEN cannot write to ${repo}, and RELEASES_REPO_TOKEN is not set. ${last} Nothing was billed.`,
-  );
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
@@ -195,7 +157,7 @@ if (isMain) {
   try {
     publish();
   } catch (error) {
-    const token = process.env.RELEASES_REPO_TOKEN || process.env.GITHUB_TOKEN || "";
+    const token = process.env.RELEASES_REPO_TOKEN || "";
     const message = error instanceof Error ? error.message : String(error);
     console.error(redact(message, token));
     process.exit(1);

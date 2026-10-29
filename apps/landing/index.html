@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f7f4" />
     <meta
       name="description"
-      content="subspaces.si is a free AI coding IDE in public beta. Ads pay for the model. Download for Mac or Linux."
+      content="subspaces.si is a free AI coding IDE in public beta with a small hosted chat trial."
     />
     <title>subspaces.si</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -32,9 +32,9 @@
       <section class="hero" id="download">
         <div class="hero-copy" data-reveal>
           <p class="eyebrow">Beta</p>
-          <h1>A coding IDE paid for by&nbsp;ads.</h1>
+          <h1>A coding IDE with a free&nbsp;beta.</h1>
           <p class="lede">
-            subspaces.si is a real editor. The opencode agent edits the file. A short sponsored card under the reply pays for Flash tokens. No Pro tier.
+            subspaces.si is a real editor. The OpenCode agent edits the file. Sponsored cards support the free beta. No Pro tier.
           </p>
           <div class="hero-actions" data-download-actions data-coming-soon data-testid="downloads">
             <a class="download-btn" data-download data-target="darwin-arm64" aria-disabled="true" tabindex="-1" data-testid="download-darwin-arm64" href="https://github.com/vihaanshahh/subspaces-releases/releases/latest/download/subspaces-si-0.1.0-darwin-arm64.tar.gz">
@@ -76,9 +76,9 @@
       <section class="try" id="try">
         <div class="try-copy" data-reveal>
           <p class="eyebrow">Try it</p>
-          <h2>Ask the model. A card pays for the tokens.</h2>
+          <h2>Try the hosted coding chat.</h2>
           <p class="try-lede">
-            This box uses the hosted chat. The server issues a small trial balance for this network. When it runs out, watch an ad to unlock about 15,000 more tokens.
+            This box uses a small server-issued trial balance. Ad rewards are unavailable in this beta while impression verification is being built.
           </p>
         </div>
         <div class="try-panel" data-try-chat data-testid="try-chat">
@@ -92,14 +92,14 @@
             <textarea id="try-prompt" data-try-input rows="2" maxlength="2000" placeholder="Ask for a small code change"></textarea>
             <button class="btn-primary" type="submit" data-try-send>Send</button>
           </form>
-          <button class="try-watch" type="button" data-try-watch>Watch an ad to unlock more tokens</button>
+          <button class="try-watch" type="button" data-try-watch disabled>Ad rewards unavailable in beta</button>
         </div>
       </section>
 
       <section class="tokens" id="tokens" data-testid="token-explainer">
         <div class="tokens-copy" data-reveal>
-          <h2>How ads earn tokens.</h2>
-          <p>subspaces.si stays free. A sponsored card under the reply is what pays for the model.</p>
+          <h2>How the free beta works.</h2>
+          <p>The hosted chat starts with a small trial balance. Sponsored cards appear when an ad fills.</p>
         </div>
         <ol class="token-flow">
           <li data-reveal>
@@ -109,13 +109,13 @@
           </li>
           <li data-reveal>
             <span class="token-figure">Card</span>
-            <h3>Each reply shows a small sponsored card</h3>
-            <p>The card sits under the answer. It is the only price of the chat.</p>
+            <h3>A sponsored card may appear under a reply</h3>
+            <p>Ad fill varies. The editor and CLI also have a local demo mode.</p>
           </li>
           <li data-reveal>
-            <span class="token-figure">+15k</span>
-            <h3>Watching an ad unlocks about 15,000 tokens</h3>
-            <p>The server adds the tokens after it verifies the ad. A number typed in the browser does not count.</p>
+            <span class="token-figure">Beta</span>
+            <h3>Ad rewards are paused</h3>
+            <p>Rewards will return when the ad provider can confirm an impression to the server.</p>
           </li>
           <li data-reveal>
             <span class="token-figure">≥ 0</span>
@@ -141,22 +141,22 @@
           <li data-reveal>
             <span class="step-no">01</span>
             <div>
-              <h3>The ad pays, not you</h3>
-              <p>A sponsored card under the reply covers Flash tokens. There is no Pro tier and nothing to subscribe to.</p>
+            <h3>No checkout</h3>
+            <p>The hosted trial is free. Sponsored cards support the beta.</p>
             </div>
           </li>
           <li data-reveal>
             <span class="step-no">02</span>
             <div>
-              <h3>The cap does not lock you out</h3>
-              <p>At 15 million tokens the reply slows. It does not stop, and it does not bill you.</p>
+            <h3>A server-controlled balance</h3>
+            <p>The hosted trial ends when its balance is spent. Local demo sessions have a separate soft cap.</p>
             </div>
           </li>
           <li data-reveal>
             <span class="step-no">03</span>
             <div>
               <h3>Your code is not the price</h3>
-              <p>Paths, secrets, and source are stripped before any ad request. The project stays on your computer.</p>
+            <p>The editor works on your computer. Ad requests receive a short excerpt with common code, path, and secret patterns removed.</p>
             </div>
           </li>
           <li data-reveal>
@@ -176,7 +176,7 @@
         <div class="grid">
           <article data-reveal>
             <h3>No subscription</h3>
-            <p>No Pro tier and no frontier-model upsell. Steady chat, paid for by ads.</p>
+            <p>No Pro tier and no frontier-model upsell. The hosted beta starts with a free trial balance.</p>
           </article>
           <article data-reveal>
             <h3>Code - OSS</h3>
@@ -192,7 +192,7 @@
           </article>
           <article data-reveal>
             <h3>15M soft cap</h3>
-            <p>The ledger counts tokens and slows replies at the cap. It does not block, and it does not bill you.</p>
+            <p>The local demo ledger slows replies at the cap. Hosted usage follows the server balance.</p>
           </article>
           <article data-reveal>
             <h3>One command</h3>
@@ -208,7 +208,7 @@
         <div class="faq-list" data-reveal>
           <details>
             <summary>Is it really free?</summary>
-            <p>Yes for the person using it. Ads cover a Flash model. There is nothing to subscribe to.</p>
+            <p>The beta has no subscription. Hosted chat includes a small trial balance; local demo mode remains available.</p>
           </details>
           <details>
             <summary>What do I need to run it?</summary>
@@ -231,7 +231,7 @@
       <div class="footer-inner">
         <div>
           <p class="footer-brand">subspaces.si</p>
-          <p>The ad pays for the model. There is no Pro tier.</p>
+          <p>Free beta. No Pro tier.</p>
         </div>
         <div>
           <p class="footer-label">Product</p>

@@ -67,7 +67,7 @@ EOF
 
 CONFIG="$ROOT/.subspaces/config.yaml"
 cat > "$CONFIG" << EOF
-bind-addr: 0.0.0.0:${IDE_PORT}
+bind-addr: 127.0.0.1:${IDE_PORT}
 auth: none
 disable-telemetry: true
 disable-update-check: true
@@ -103,7 +103,7 @@ echo ""
 "$CODE_SERVER" \
   --config "$CONFIG" \
   --auth none \
-  --bind-addr "0.0.0.0:${IDE_PORT}" \
+  --bind-addr "127.0.0.1:${IDE_PORT}" \
   --disable-telemetry \
   --disable-update-check \
   --disable-workspace-trust \

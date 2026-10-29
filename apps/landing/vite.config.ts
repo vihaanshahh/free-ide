@@ -8,7 +8,7 @@ const apiPort = Number(process.env.SUBSPACES_API_PORT || 41824);
 
 export default defineConfig({
   server: {
-    host: "0.0.0.0",
+    host: "127.0.0.1",
     port,
     strictPort: true,
     fs: { allow: [repoRoot] },
@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   preview: {
-    host: "0.0.0.0",
+    host: "127.0.0.1",
     port,
     strictPort: true,
   },

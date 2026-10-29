@@ -10,19 +10,19 @@ export const RELEASE_TARGETS = [
     id: "darwin-arm64",
     label: "Mac Apple Silicon",
     file: "subspaces-si-0.1.0-darwin-arm64.tar.gz",
-    size: 211327230,
+    size: 211307257,
   },
   {
     id: "darwin-x64",
     label: "Mac Intel",
     file: "subspaces-si-0.1.0-darwin-x64.tar.gz",
-    size: 231889067,
+    size: 231853310,
   },
   {
     id: "linux-x64",
     label: "Linux",
     file: "subspaces-si-0.1.0-linux-x64.tar.gz",
-    size: 240373394,
+    size: 240347481,
   },
 ] as const;
 

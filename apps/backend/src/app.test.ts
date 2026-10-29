@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setRewardProofForTests } from "./ads.ts";
 import { app } from "./app.ts";
-import { AD_REWARD_TOKENS, GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES, TRIAL_TOKENS } from "./config.ts";
-import { issueSessionToken, resetLimitsForTests } from "./guard.ts";
+import { GRAVITY_PIXEL_ID, MAX_REQUEST_BYTES, TRIAL_TOKENS } from "./config.ts";
+import { issueSessionToken, readSessionToken, resetLimitsForTests } from "./guard.ts";
+import { setHostedCommandForTests } from "./hosted-state.ts";
 
 function clientHeaders(ip: string, extra: Record<string, string> = {}): Record<string, string> {
   return {
@@ -280,182 +280,149 @@ test("a session token from the app authorizes web chat", async () => {
   }
 });
 
-test("hosted model calls reject a missing session, header-only clients, and an empty balance", async () => {
-  resetLimitsForTests();
-  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
-  process.env.LLM_API_KEY = "sk-or-test-secret-value";
-  process.env.VERCEL = "1";
-  delete process.env.GRAVITY_API_KEY;
-  let called = false;
-  const original = globalThis.fetch;
-  globalThis.fetch = async () => {
-    called = true;
-    return new Response("should not run", { status: 500 });
+function fakeHostedStore() {
+  const balances = new Map<string, number>();
+  const trials = new Set<string>();
+  const rates = new Map<string, number>();
+  setHostedCommandForTests(async (args) => {
+    const [operation, script, , ...rest] = args;
+    if (operation === "HGET") return balances.get(String(script)) ?? null;
+    if (operation !== "EVAL") throw new Error("unexpected Redis operation");
+    const source = String(script);
+    if (source.includes("PEXPIREAT")) {
+      const [rate, trial, session, amount] = rest;
+      const count = (rates.get(String(rate)) ?? 0) + 1;
+      rates.set(String(rate), count);
+      if (count > 20) return -1;
+      const balance = trials.has(String(trial)) ? 0 : Number(amount);
+      trials.add(String(trial));
+      balances.set(String(session), balance);
+      return balance;
+    }
+    if (source.includes("HINCRBY")) {
+      const [session, cost] = rest;
+      const balance = balances.get(String(session));
+      if (balance === undefined) return -1;
+      if (balance < Number(cost)) return -2;
+      const next = balance - Number(cost);
+      balances.set(String(session), next);
+      return next;
+    }
+    const [rate] = rest;
+    const count = (rates.get(String(rate)) ?? 0) + 1;
+    rates.set(String(rate), count);
+    return count;
+  });
+  return { balances };
+}
+
+test("hosted routes fail closed without signing and shared state configuration", async () => {
+  const previous = {
+    LLM_API_KEY: process.env.LLM_API_KEY,
+    VERCEL: process.env.VERCEL,
+    SUBSPACES_SESSION_SECRET: process.env.SUBSPACES_SESSION_SECRET,
   };
+  process.env.LLM_API_KEY = "provider-test-key";
+  process.env.VERCEL = "1";
+  delete process.env.SUBSPACES_SESSION_SECRET;
+  setHostedCommandForTests(null);
   try {
-    const body = JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-bypass" });
-    const noSession = await app.request("/v1/chat/completions", {
+    const session = await app.request("/api/session");
+    assert.equal(session.status, 503);
+    const chat = await app.request("/api/chat", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.40" },
-      body,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
     });
-    assert.equal(noSession.status, 401);
-
-    const headerOnly = await app.request("/api/chat", {
-      method: "POST",
-      headers: clientHeaders("203.0.113.41", { "x-subspaces-client": "cli" }),
-      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-cli" }),
-    });
-    assert.equal(headerOnly.status, 401);
-
-    const localBearer = await app.request("/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: "Bearer subspaces-local",
-        "x-forwarded-for": "203.0.113.42",
-      },
-      body,
-    });
-    assert.equal(localBearer.status, 401);
-
-    const empty = issueSessionToken(Date.now(), { bal: 0 });
-    const noBalance = await app.request("/api/chat", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": empty,
-        "x-forwarded-for": "203.0.113.43",
-      },
-      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], sessionId: "hosted-empty" }),
-    });
-    assert.equal(noBalance.status, 402);
-
-    const short = issueSessionToken(Date.now(), { bal: 100 });
-    const exceeded = await app.request("/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": short,
-        "x-forwarded-for": "203.0.113.44",
-      },
-      body,
-    });
-    assert.equal(exceeded.status, 402);
-    assert.equal(called, false);
-    assert.equal((await noBalance.text()).includes("sk-or-test-secret-value"), false);
+    assert.equal(chat.status, 503);
   } finally {
-    globalThis.fetch = original;
     restoreEnv(previous);
   }
 });
 
-test("a client-asserted credit does not grant hosted tokens", async () => {
-  resetLimitsForTests();
-  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
-  process.env.LLM_API_KEY = "sk-or-test-secret-value";
-  process.env.VERCEL = "1";
-  delete process.env.GRAVITY_API_KEY;
-  setRewardProofForTests(null);
-  const token = issueSessionToken(Date.now(), { bal: 0, sid: "reward-sid" });
-  try {
-    const forged = await app.request("/api/ads/reward", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": token,
-        "x-forwarded-for": "203.0.113.50",
-      },
-      body: JSON.stringify({ tokens: 15_000, credit: 15_000, unlocked: 15_000 }),
-    });
-    assert.equal(forged.status, 402);
-    const forgedBody = (await forged.json()) as { balance: number; error: string };
-    assert.equal(forgedBody.balance, 0);
-    assert.equal(JSON.stringify(forgedBody).includes("sk-or-test-secret-value"), false);
-
-    let impressions = 0;
-    setRewardProofForTests(async () => ({
-      ok: true,
-      impressionId: `imp-verified-${impressions += 1}`,
-      ad: null,
-    }));
-    const granted = await app.request("/api/ads/reward", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": token,
-        "x-forwarded-for": "203.0.113.51",
-      },
-      body: JSON.stringify({ tokens: 999_999 }),
-    });
-    assert.equal(granted.status, 200);
-    const grantedBody = (await granted.json()) as { balance: number; token: string };
-    assert.equal(grantedBody.balance, AD_REWARD_TOKENS);
-
-    const replay = await app.request("/api/ads/reward", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": token,
-        "x-forwarded-for": "203.0.113.52",
-      },
-      body: JSON.stringify({ tokens: 15_000 }),
-    });
-    assert.equal(replay.status, 401);
-  } finally {
-    setRewardProofForTests(null);
-    restoreEnv(previous);
-  }
-});
-
-test("hosted chat spends a server-signed balance and does not echo the provider key", async () => {
-  resetLimitsForTests();
-  const previous = { LLM_API_KEY: process.env.LLM_API_KEY, VERCEL: process.env.VERCEL, GRAVITY_API_KEY: process.env.GRAVITY_API_KEY };
-  process.env.LLM_API_KEY = "sk-or-test-secret-value";
-  process.env.VERCEL = "1";
-  delete process.env.GRAVITY_API_KEY;
-  const token = issueSessionToken(Date.now(), { bal: 20_000, sid: "spend-sid" });
-  const original = globalThis.fetch;
-  globalThis.fetch = async () => {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"funded"}}]}\n\n'));
-        controller.close();
-      },
-    });
-    return new Response(stream, { status: 200, headers: { "content-type": "text/event-stream" } });
+test("hosted session has durable authoritative balance and a stable token", async () => {
+  const previous = {
+    LLM_API_KEY: process.env.LLM_API_KEY,
+    VERCEL: process.env.VERCEL,
+    SUBSPACES_SESSION_SECRET: process.env.SUBSPACES_SESSION_SECRET,
   };
+  process.env.LLM_API_KEY = "provider-test-key";
+  process.env.VERCEL = "1";
+  process.env.SUBSPACES_SESSION_SECRET = "test-only-session-secret-32-bytes-minimum";
+  const store = fakeHostedStore();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response(
+    'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+    { status: 200, headers: { "content-type": "text/event-stream" } },
+  );
   try {
-    const response = await app.request("/api/chat", {
+    const first = await app.request("/api/session", { headers: { "x-forwarded-for": "203.0.113.100" } });
+    assert.equal(first.status, 200);
+    const minted = await first.json() as { token: string; balance: number };
+    assert.equal(minted.balance, TRIAL_TOKENS);
+    const second = await app.request("/api/session", { headers: { "x-forwarded-for": "203.0.113.100" } });
+    assert.equal((await second.json() as { balance: number }).balance, 0);
+    const response = await app.request("/v1/chat/completions", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": token,
-        "x-subspaces-client": "desktop",
-        "x-forwarded-for": "203.0.113.60",
-      },
-      body: JSON.stringify({ messages: [{ role: "user", content: "hello" }], sessionId: "hosted-spend" }),
+      headers: { "content-type": "application/json", "x-subspaces-token": minted.token, "x-forwarded-for": "203.0.113.100" },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
     });
     assert.equal(response.status, 200);
-    const text = await response.text();
-    assert.match(text, /funded/);
-    assert.match(text, /"mockLlm":false/);
-    assert.equal(text.includes("sk-or-test-secret-value"), false);
-    assert.equal(response.headers.get("x-subspaces-token")?.includes("sk-or-test-secret-value") ?? false, false);
-    const rotated = response.headers.get("x-subspaces-token") || "";
-    assert.notEqual(rotated, token);
-    const again = await app.request("/api/chat", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-subspaces-token": token,
-        "x-forwarded-for": "203.0.113.61",
-      },
-      body: JSON.stringify({ messages: [{ role: "user", content: "hello again" }], sessionId: "hosted-replay" }),
-    });
-    assert.equal(again.status, 401);
+    assert.equal(response.headers.get("x-subspaces-token"), minted.token);
+    const refreshed = await app.request("/api/session", { headers: { "x-subspaces-token": minted.token } });
+    const state = await refreshed.json() as { token: string; balance: number };
+    assert.equal(state.token, minted.token);
+    assert.ok(state.balance < TRIAL_TOKENS);
+    assert.ok(state.balance >= 0);
+    const sid = readSessionToken(minted.token)!.sid;
+    store.balances.set(`subspaces:v1:session:${sid}`, 3000);
+    const [a, b] = await Promise.all([
+      app.request("/v1/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-subspaces-token": minted.token },
+        body: JSON.stringify({ messages: [{ role: "user", content: "next" }] }),
+      }),
+      app.request("/v1/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-subspaces-token": minted.token },
+        body: JSON.stringify({ messages: [{ role: "user", content: "next" }] }),
+      }),
+    ]);
+    assert.deepEqual([a.status, b.status].sort(), [200, 402]);
   } finally {
     globalThis.fetch = original;
+    setHostedCommandForTests(null);
+    restoreEnv(previous);
+  }
+});
+
+test("hosted API rejects signed balance claims without a stored session and disables unverified rewards", async () => {
+  const previous = {
+    LLM_API_KEY: process.env.LLM_API_KEY,
+    VERCEL: process.env.VERCEL,
+    SUBSPACES_SESSION_SECRET: process.env.SUBSPACES_SESSION_SECRET,
+  };
+  process.env.LLM_API_KEY = "provider-test-key";
+  process.env.VERCEL = "1";
+  process.env.SUBSPACES_SESSION_SECRET = "test-only-session-secret-32-bytes-minimum";
+  fakeHostedStore();
+  try {
+    const forged = issueSessionToken(Date.now(), { bal: 999999, sid: "forged-sid" });
+    const response = await app.request("/api/chat", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-subspaces-token": forged },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+    });
+    assert.equal(response.status, 401);
+    const reward = await app.request("/api/ads/reward", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-subspaces-token": forged },
+      body: JSON.stringify({ tokens: 999999 }),
+    });
+    assert.equal(reward.status, 501);
+    assert.match(await reward.text(), /unavailable/);
+  } finally {
+    setHostedCommandForTests(null);
     restoreEnv(previous);
   }
 });

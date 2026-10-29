@@ -8,6 +8,7 @@ export interface PublicConfig {
   gravity?: boolean;
   pixelId?: string;
   adReward?: number;
+  rewardAvailable?: boolean;
 }
 
 export interface AdCard {
@@ -106,6 +107,7 @@ export function mountTryChat(root: ParentNode = document): void {
   let balance = 0;
   let kind: ChatAvailability = "offline";
   let reward = 15_000;
+  let rewardAvailable = false;
   let busy = false;
 
   const paint = () => {
@@ -115,7 +117,8 @@ export function mountTryChat(root: ParentNode = document): void {
     balanceEl.textContent = formatTokenBalance(balance);
     send.disabled = busy || kind === "offline";
     input.disabled = kind === "offline";
-    watch.disabled = busy || kind === "offline" || !token;
+    watch.disabled = busy || kind === "offline" || !token || !rewardAvailable;
+    watch.textContent = rewardAvailable ? "Watch an ad to unlock more tokens" : "Ad rewards unavailable in beta";
   };
 
   const note = (text: string) => {
@@ -178,6 +181,7 @@ export function mountTryChat(root: ParentNode = document): void {
       .catch(() => null);
     kind = chatAvailability(config);
     reward = typeof config?.adReward === "number" ? config.adReward : reward;
+    rewardAvailable = config?.rewardAvailable === true;
     installPixel(config?.pixelId || GRAVITY_PIXEL_ID);
     if (kind !== "offline") {
       const session = await fetch("/api/session")
@@ -210,8 +214,8 @@ export function mountTryChat(root: ParentNode = document): void {
       const rotated = response.headers.get("x-subspaces-token");
       if (rotated) token = rotated;
       if (response.status === 402) {
-        reply.textContent = "Watch an ad to unlock more tokens.";
-        note("The server balance is empty. Watching a verified ad unlocks more tokens.");
+        reply.textContent = "The trial balance is empty.";
+        note(rewardAvailable ? "Watch a verified ad to unlock more tokens." : "Ad rewards are unavailable in this beta.");
         return;
       }
       if (!response.ok || !response.body) {

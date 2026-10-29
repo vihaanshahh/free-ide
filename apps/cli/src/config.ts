@@ -37,7 +37,12 @@ export function apiOrigin(api: string): string {
   return api.replace(/\/v1$/, "");
 }
 
-export function buildOpencodeConfig(api: string): OpencodeConfig {
+export function hostedApi(api: string): boolean {
+  const host = new URL(api).hostname;
+  return host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]";
+}
+
+export function buildOpencodeConfig(api: string, providerKey = PROVIDER_KEY): OpencodeConfig {
   return {
     $schema: "https://opencode.ai/config.json",
     model: `subspaces/${PRIMARY_MODEL_ID}`,
@@ -52,7 +57,7 @@ export function buildOpencodeConfig(api: string): OpencodeConfig {
         env: ["SUBSPACES_PROVIDER_KEY"],
         options: {
           baseURL: api,
-          apiKey: PROVIDER_KEY,
+          apiKey: providerKey,
         },
         models: {
           [PRIMARY_MODEL_ID]: { name: PRIMARY_MODEL_NAME, tool_call: true },
@@ -63,15 +68,16 @@ export function buildOpencodeConfig(api: string): OpencodeConfig {
   };
 }
 
-export function writeOpencodeConfig(file: string, api: string): string {
+export function writeOpencodeConfig(file: string, api: string, providerKey = PROVIDER_KEY): string {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(buildOpencodeConfig(api), null, 2)}\n`);
+  fs.writeFileSync(file, `${JSON.stringify(buildOpencodeConfig(api, providerKey), null, 2)}\n`, { mode: 0o600 });
+  fs.chmodSync(file, 0o600);
   return file;
 }
 
 const SECRET = /API_KEY|SECRET|TOKEN|PASSWORD/i;
 
-export function opencodeEnv(base: NodeJS.ProcessEnv, home: string, configPath: string): NodeJS.ProcessEnv {
+export function opencodeEnv(base: NodeJS.ProcessEnv, home: string, configPath: string, providerKey = PROVIDER_KEY): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(base)) {
     if (key.startsWith("GRAVITY_") || SECRET.test(key)) continue;
@@ -84,7 +90,7 @@ export function opencodeEnv(base: NodeJS.ProcessEnv, home: string, configPath: s
   env.OPENCODE_CONFIG = configPath;
   env.OPENCODE_DISABLE_AUTOUPDATE = "1";
   env.OPENCODE_DISABLE_MODELS_FETCH = "1";
-  env.SUBSPACES_PROVIDER_KEY = PROVIDER_KEY;
+  env.SUBSPACES_PROVIDER_KEY = providerKey;
   return env;
 }
 

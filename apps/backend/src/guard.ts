@@ -1,12 +1,10 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { MODEL_REQUESTS_PER_MINUTE } from "./config.ts";
 
-const TOKEN_SECRET = "subspaces-session-v1";
-const TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+// Local sessions are ephemeral. Hosted sessions require a configured secret.
+const LOCAL_TOKEN_SECRET = randomBytes(32).toString("base64url");
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const WINDOW_MS = 60_000;
-const REWARD_WINDOW_MS = 60 * 60 * 1000;
-const REWARD_LIMIT = 6;
-export const REWARD_COOLDOWN_MS = 20_000;
 
 const ALLOWED_ORIGINS = new Set([
   "https://subspaces.si",
@@ -26,8 +24,6 @@ export interface SessionClaims {
 }
 
 const hits = new Map<string, number[]>();
-const seenSeq = new Map<string, number>();
-const redeemedImpressions = new Set<string>();
 const trialIps = new Set<string>();
 
 export function corsOrigin(origin: string): string | null {
@@ -41,12 +37,18 @@ export function originAllowed(origin: string | undefined): boolean {
   return corsOrigin(origin) !== null;
 }
 
-export function clientIp(headers: { get(name: string): string | null }): string {
-  const forwarded = headers.get("x-forwarded-for");
+export function clientIp(headers: { get(name: string): string | null }, hosted = false): string {
+  // Vercel supplies this header at its ingress. A self-hosted deployment must
+  // configure a trusted proxy before using client IPs for grants or limits.
+  if (hosted && process.env.VERCEL !== "1") return "unknown";
+  const forwarded = process.env.VERCEL === "1"
+    ? headers.get("x-vercel-forwarded-for")
+    : headers.get("x-forwarded-for");
   if (forwarded) {
     const first = forwarded.split(",")[0]?.trim();
     if (first) return first.slice(0, 80);
   }
+  if (process.env.VERCEL === "1") return "unknown";
   return (headers.get("x-real-ip") || "unknown").slice(0, 80);
 }
 
@@ -139,39 +141,6 @@ export function sessionFromHeaders(
   return token ? readSessionToken(token, now) : null;
 }
 
-export function rotateSession(
-  claims: SessionClaims,
-  patch: { bal?: number; rew?: number },
-  now = Date.now(),
-): string {
-  return issueSessionToken(now, {
-    sid: claims.sid,
-    exp: claims.exp,
-    bal: patch.bal ?? claims.bal,
-    seq: claims.seq + 1,
-    rew: patch.rew ?? claims.rew,
-  });
-}
-
-/** False when this signed sequence was already spent on this instance. */
-export function commitSessionUse(claims: SessionClaims): boolean {
-  const prev = seenSeq.get(claims.sid) ?? -1;
-  if (claims.seq <= prev) return false;
-  seenSeq.set(claims.sid, claims.seq);
-  return true;
-}
-
-export function rewardCooldownOk(claims: SessionClaims, now = Date.now()): boolean {
-  return now - claims.rew >= REWARD_COOLDOWN_MS;
-}
-
-/** False when this Gravity impression was already redeemed. */
-export function redeemImpression(id: string): boolean {
-  if (!id || id.length > 500 || redeemedImpressions.has(id)) return false;
-  redeemedImpressions.add(id);
-  return true;
-}
-
 export function clientAuthorized(headers: { get(name: string): string | null }, now = Date.now()): boolean {
   const client = headers.get("x-subspaces-client")?.trim().toLowerCase();
   if (client && CLIENTS.has(client)) return true;
@@ -195,19 +164,14 @@ export function claimTrial(ip: string, amount: number): number {
   return Math.max(0, Math.floor(amount));
 }
 
-export function allowReward(ip: string, now = Date.now()): boolean {
-  return take(`reward:${ip}`, REWARD_LIMIT, REWARD_WINDOW_MS, now);
-}
-
 export function resetLimitsForTests(): void {
   hits.clear();
-  seenSeq.clear();
-  redeemedImpressions.clear();
   trialIps.clear();
 }
 
 function sign(body: string): string {
-  return createHmac("sha256", TOKEN_SECRET).update(body).digest("base64url");
+  return createHmac("sha256", process.env.SUBSPACES_SESSION_SECRET?.trim() || LOCAL_TOKEN_SECRET)
+    .update(body).digest("base64url");
 }
 
 function nonNegative(value: number): number {

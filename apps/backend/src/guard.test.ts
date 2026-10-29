@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   allowModelRequest,
   clientAuthorized,
+  clientIp,
   corsOrigin,
   issueSessionToken,
   originAllowed,
@@ -45,4 +46,30 @@ test("model calls are capped per ip", () => {
   }
   assert.equal(allowModelRequest("203.0.113.50"), false);
   assert.equal(allowModelRequest("203.0.113.51"), true);
+});
+
+test("hosted IP attribution ignores caller-provided forwarded-for", () => {
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = "1";
+  try {
+    const headers = new Headers({
+      "x-forwarded-for": "198.51.100.20",
+      "x-vercel-forwarded-for": "203.0.113.20",
+    });
+    assert.equal(clientIp(headers), "203.0.113.20");
+    headers.delete("x-vercel-forwarded-for");
+    assert.equal(clientIp(headers), "unknown");
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previous;
+  }
+  delete process.env.VERCEL;
+  try {
+    const headers = new Headers({ "x-forwarded-for": "198.51.100.20" });
+    assert.equal(clientIp(headers, true), "unknown");
+    assert.equal(clientIp(headers, false), "198.51.100.20");
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previous;
+  }
 });

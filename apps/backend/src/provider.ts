@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { estimateTokens } from "./ledger.ts";
 import { ledger } from "./runtime.ts";
 import {
@@ -50,18 +51,14 @@ interface ToolTrace {
   hasResult: boolean;
 }
 
-let activeSession = "opencode";
+const sessionContext = new AsyncLocalStorage<string>();
 
 export function withProviderSession<T>(sessionId: string, run: () => Promise<T>): Promise<T> {
-  const previous = activeSession;
-  activeSession = sessionId;
-  return run().finally(() => {
-    activeSession = previous;
-  });
+  return sessionContext.run(sessionId, run);
 }
 
 export function providerSession(): string {
-  return activeSession;
+  return sessionContext.getStore() ?? "opencode";
 }
 
 function textOf(content: unknown): string {
@@ -307,14 +304,14 @@ export function completionFrames(body: ChatCompletionBody, decision: Completion)
     usage: { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion },
   });
   frames.push("data: [DONE]\n\n");
-  ledger.record(activeSession, prompt, completion);
+  ledger.record(providerSession(), prompt, completion);
   return frames;
 }
 
 export function completionJson(body: ChatCompletionBody, decision: Completion) {
   const prompt = estimateTokens(JSON.stringify(body.messages ?? []));
   const completion = decision.kind === "text" ? estimateTokens(decision.text) : estimateTokens(JSON.stringify(decision.args));
-  ledger.record(activeSession, prompt, completion);
+  ledger.record(providerSession(), prompt, completion);
   const message =
     decision.kind === "tool"
       ? {
@@ -359,6 +356,7 @@ export function upstreamTargets(): UpstreamTarget[] {
 }
 
 export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typeof fetch = fetch): Promise<Response> {
+  const sessionId = providerSession();
   const targets = upstreamTargets();
   if (targets.length === 0) {
     return Response.json(
@@ -379,7 +377,7 @@ export async function forwardCompletion(body: ChatCompletionBody, fetchImpl: typ
         const prompt = estimateTokens(JSON.stringify(body.messages ?? []));
         const [forClient, forCount] = response.body.tee();
         void countCompletion(forCount).then((completion) => {
-          ledger.record(activeSession, prompt, completion);
+          ledger.record(sessionId, prompt, completion);
         });
         return new Response(forClient, {
           status: response.status,

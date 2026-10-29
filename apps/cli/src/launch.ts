@@ -56,7 +56,7 @@ export async function apiReachable(api: string, fetchImpl: FetchLike): Promise<b
       method: "GET",
       signal: AbortSignal.timeout(1200),
     });
-    return response.status > 0;
+    return response.ok;
   } catch {
     return false;
   }

@@ -4,7 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { FALLBACK_MODEL, LLM_BASE_URL, PRIMARY_MODEL } from "./config.ts";
-import { decideCompletion, forwardCompletion, toolTraces, upstreamTargets, type ChatCompletionBody } from "./provider.ts";
+import { decideCompletion, forwardCompletion, providerSession, toolTraces, upstreamTargets, withProviderSession, type ChatCompletionBody } from "./provider.ts";
+
+test("concurrent provider calls keep their own session context", async () => {
+  const first = withProviderSession("first-session", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return providerSession();
+  });
+  const second = withProviderSession("second-session", async () => {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    return providerSession();
+  });
+  assert.deepEqual(await Promise.all([first, second]), ["first-session", "second-session"]);
+});
 
 const SOURCE = `export async function listInvoices(query: InvoiceQuery = {}) {
   const rows = await db.invoice.findMany();

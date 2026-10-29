@@ -76,7 +76,6 @@ jobs:
       - name: Publish public downloads
         run: node scripts/publish-public-release.mjs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           SUBSPACES_TAG: ${{ github.ref_name }}
 
@@ -101,6 +100,5 @@ jobs:
       - name: Publish public downloads
         run: node scripts/publish-public-release.mjs
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           SUBSPACES_TAG: ${{ inputs.tag }}

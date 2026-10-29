@@ -55,7 +55,7 @@ const configPath = path.join(ROOT, ".subspaces", "config.yaml");
 fs.writeFileSync(
   configPath,
   [
-    `bind-addr: 0.0.0.0:${IDE_PORT}`,
+    `bind-addr: 127.0.0.1:${IDE_PORT}`,
     "auth: none",
     "disable-telemetry: true",
     "disable-update-check: true",
@@ -103,7 +103,7 @@ launch(
     "--auth",
     "none",
     "--bind-addr",
-    `0.0.0.0:${IDE_PORT}`,
+    `127.0.0.1:${IDE_PORT}`,
     "--disable-telemetry",
     "--disable-update-check",
     "--disable-workspace-trust",

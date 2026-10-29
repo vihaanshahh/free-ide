@@ -22,7 +22,7 @@ if (process.env.VERCEL !== "1") {
     });
   }
 
-  serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, () => {
+  serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
     console.log(`subspaces proxy on http://127.0.0.1:${port} mockLlm=${mockLlmEnabled()} opencode=${autostart}`);
   });
 }

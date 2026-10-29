@@ -11,6 +11,7 @@ import {
   DEFAULT_API,
   FALLBACK_MODEL_ID,
   FALLBACK_MODEL_NAME,
+  hostedApi,
   OPENCODE_VERSION,
   PRIMARY_MODEL_ID,
   PRIMARY_MODEL_NAME,
@@ -19,6 +20,7 @@ import {
   type OpencodeConfig,
 } from "./config.ts";
 import type { LaunchRequest } from "./launch.ts";
+import { refreshHostedSession, sessionPath } from "./session.ts";
 
 test("opencode config points both Flash models at the subspaces proxy", () => {
   const body = buildOpencodeConfig(DEFAULT_API);
@@ -35,6 +37,8 @@ test("opencode config points both Flash models at the subspaces proxy", () => {
   assert.equal(resolveApi({}), DEFAULT_API);
   assert.equal(resolveApi({ SUBSPACES_API: "https://example.test/v1/" }), "https://example.test/v1");
   assert.equal(resolveApi({ SUBSPACES_API: "https://example.test" }), "https://example.test/v1");
+  assert.equal(hostedApi(DEFAULT_API), true);
+  assert.equal(hostedApi("http://127.0.0.1:41824/v1"), false);
 });
 
 test("writeOpencodeConfig stores the generated provider file", () => {
@@ -155,6 +159,7 @@ test("live run launches opencode and prints the /api/ads card", async () => {
   io.exists = (file) => file === "/tmp/opencode-test-bin";
   io.fetch = async (url) => {
     io.fetched += 1;
+    if (url.endsWith("/api/session")) return Response.json({ token: "signed-hosted-session", balance: 4096 });
     if (url.endsWith("/api/ads")) {
       return Response.json({
         ad: { title: "From the proxy", adText: "Filled by /api/ads.", url: "https://example.com/live", brandName: "Quillfern" },
@@ -169,7 +174,7 @@ test("live run launches opencode and prints the /api/ads card", async () => {
   assert.equal(launch.bin, "/tmp/opencode-test-bin");
   assert.deepEqual(launch.args, ["run", "--model", "subspaces/glm-5.3-flash", "--auto", "--format", "default", "rename the helper"]);
   assert.equal(launch.env.OPENCODE_CONFIG, path.join(home, "opencode.json"));
-  assert.equal(launch.env.SUBSPACES_PROVIDER_KEY, "subspaces-local");
+  assert.equal(launch.env.SUBSPACES_PROVIDER_KEY, "signed-hosted-session");
   assert.equal(launch.env.GRAVITY_API_KEY, undefined);
   assert.equal(launch.env.LLM_API_KEY, undefined);
   assert.equal(launch.env.PATH, "/usr/bin");
@@ -177,6 +182,51 @@ test("live run launches opencode and prints the /api/ads card", async () => {
   assert.match(io.out.join(""), /https:\/\/example\.com\/live/);
   const config = JSON.parse(fs.readFileSync(path.join(home, "opencode.json"), "utf8")) as OpencodeConfig;
   assert.equal(config.provider.subspaces.options.baseURL, "https://subspaces.example/v1");
+  assert.equal(config.provider.subspaces.options.apiKey, "signed-hosted-session");
+  assert.equal(fs.statSync(path.join(home, "opencode.json")).mode & 0o777, 0o600);
+  assert.equal(JSON.parse(fs.readFileSync(sessionPath(home), "utf8")).token, "signed-hosted-session");
+});
+
+test("hosted balance is read from the API and watch-ad cannot mint local credit", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "subspaces-hosted-balance-"));
+  const io = fakeIo(home);
+  io.env.SUBSPACES_MOCK = "0";
+  io.fetch = async (url) => url.endsWith("/api/session")
+    ? Response.json({ token: "hosted-token", balance: 3072 })
+    : new Response("missing", { status: 404 });
+  assert.equal(await main(["balance"], io), 0);
+  assert.match(io.out.join(""), /3,072/);
+  assert.match(io.out.join(""), /hosted API/);
+  assert.equal(await main(["watch-ad"], io), 1);
+  assert.match(io.err.join(""), /No tokens were added/);
+  assert.equal(fs.existsSync(path.join(home, "balance.json")), false);
+});
+
+test("hosted session resumes with its saved token and keeps private file permissions", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "subspaces-hosted-session-"));
+  const seen: string[] = [];
+  const fetchSession = async (_url: string, init?: RequestInit) => {
+    seen.push(new Headers(init?.headers).get("x-subspaces-token") || "");
+    return Response.json({ token: "server-session", balance: seen.length === 1 ? 4096 : 2048 });
+  };
+  assert.equal((await refreshHostedSession(DEFAULT_API, home, fetchSession)).balance, 4096);
+  assert.equal((await refreshHostedSession(DEFAULT_API, home, fetchSession)).balance, 2048);
+  assert.deepEqual(seen, ["", "server-session"]);
+  assert.equal(fs.statSync(sessionPath(home)).mode & 0o777, 0o600);
+});
+
+test("hosted run stops before launching when no usable credit is available", async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "subspaces-hosted-empty-"));
+  const io = fakeIo(home);
+  io.env.SUBSPACES_MOCK = "0";
+  io.env.OPENCODE_BIN = "/tmp/opencode-test-bin";
+  io.exists = () => true;
+  io.fetch = async (url) => url.endsWith("/api/session")
+    ? Response.json({ token: "empty-session", balance: 12 })
+    : new Response("missing", { status: 404 });
+  assert.equal(await main(["run", "hello"], io), 1);
+  assert.equal(io.launched.length, 0);
+  assert.match(io.err.join(""), /balance is 12 tokens/);
 });
 
 test("watch-ad counts down and unlocks 15k tokens", async () => {
